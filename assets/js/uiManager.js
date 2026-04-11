@@ -41,6 +41,7 @@ class UIManager {
     this._bindTaxYearSelect();
     this._bindFxRate();
     this._bindSaveLoad();
+    this._bindFileBug();
     this._renderAccountList();
     this._renderPropertyList();
     this._renderBrokerageList();
@@ -200,6 +201,18 @@ class UIManager {
         if (ok) { this.toast('Plan loaded', 'success'); this.init(); }
         else    { this.toast('No saved plan found', 'warning'); }
       }
+    });
+  }
+
+  // ── Save / Load ───────────────────────────────────────────────────────────
+  _bindFileBug() {
+    const bugBtn = document.getElementById('btn-bug');
+
+    if (bugBtn) bugBtn.addEventListener('click', () => {
+      DebugLogger.panel.style.display = 'block';
+      //Compile the bug content
+      //const urlBase = 'https://github.com/terrypacker/retire-path/issues/new';
+      //window.open(urlBase, '_blank');
     });
   }
 

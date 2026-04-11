@@ -50,6 +50,7 @@
       <span class="fx-rate-display" id="fx-rate-display">1 USD = 1.5800 AUD</span>
       <button class="btn-icon" id="btn-save" title="Save plan">💾</button>
       <button class="btn-icon" id="btn-load" title="Load plan">📂</button>
+      <button class="btn-icon" id="btn-bug" title="File bug">🐛</button>
     </div>
   </header>
 
@@ -520,6 +521,8 @@
 </div><!-- /#app -->
 
 <!-- ══════════════════ MODALS ══════════════════ -->
+<!-- Debug Modal -->
+<div class="modal-overlay" id="modal-overlay-debug"></div>
 
 <!-- Cash Flow Drill-Down Modal -->
 <div class="modal-overlay" id="modal-overlay-cashflow">
@@ -782,6 +785,7 @@
 <div class="toast-container" id="toast-container"></div>
 
 <!-- ══════════════════ SCRIPTS ══════════════════ -->
+<script src="assets/js/debugLogger.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
 <script src="assets/js/appState.js"></script>
