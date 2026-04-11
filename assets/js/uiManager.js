@@ -231,18 +231,82 @@ export class UIManager {
 
   // ── Save / Load ───────────────────────────────────────────────────────────
   _bindSaveLoad() {
-    const saveBtn = document.getElementById('btn-save');
-    const loadBtn = document.getElementById('btn-load');
-    if (saveBtn) saveBtn.addEventListener('click', () => {
+    const saveBtn        = document.getElementById('btn-save');
+    const saveDropdown   = document.getElementById('save-dropdown');
+    const loadBtn        = document.getElementById('btn-load');
+    const loadDropdown   = document.getElementById('load-dropdown');
+    const jsonFileInput  = document.getElementById('json-file-input');
+
+    const _toggleDropdown = (dropdown, other) => {
+      other?.classList.remove('open');
+      dropdown?.classList.toggle('open');
+    };
+
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('#btn-save') && !e.target.closest('#save-dropdown')) {
+        saveDropdown?.classList.remove('open');
+      }
+      if (!e.target.closest('#btn-load') && !e.target.closest('#load-dropdown')) {
+        loadDropdown?.classList.remove('open');
+      }
+    });
+
+    if (saveBtn) saveBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      _toggleDropdown(saveDropdown, loadDropdown);
+    });
+
+    document.getElementById('btn-save-browser')?.addEventListener('click', () => {
+      saveDropdown?.classList.remove('open');
       this._state.save();
       this.toast('Plan saved to browser storage', 'success');
     });
-    if (loadBtn) loadBtn.addEventListener('click', () => {
-      if (confirm('Load saved plan? This will overwrite current inputs.')) {
+
+    document.getElementById('btn-save-json')?.addEventListener('click', () => {
+      saveDropdown?.classList.remove('open');
+      const json = this._state.exportJSON();
+      const blob = new Blob([json], { type: 'application/json' });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href     = url;
+      a.download = 'retire-path-plan.json';
+      a.click();
+      URL.revokeObjectURL(url);
+      this.toast('Plan saved as JSON file', 'success');
+    });
+
+    if (loadBtn) loadBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      _toggleDropdown(loadDropdown, saveDropdown);
+    });
+
+    document.getElementById('btn-load-browser')?.addEventListener('click', () => {
+      loadDropdown?.classList.remove('open');
+      if (confirm('Load saved plan from browser storage? This will overwrite current inputs.')) {
         const ok = this._state.load();
-        if (ok) { this.toast('Plan loaded', 'success'); this.init(); }
-        else    { this.toast('No saved plan found', 'warning'); }
+        if (ok) { this.toast('Plan loaded from browser storage', 'success'); this.init(); }
+        else    { this.toast('No saved plan found in browser storage', 'warning'); }
       }
+    });
+
+    document.getElementById('btn-load-json')?.addEventListener('click', () => {
+      loadDropdown?.classList.remove('open');
+      jsonFileInput?.click();
+    });
+
+    if (jsonFileInput) jsonFileInput.addEventListener('change', () => {
+      const file = jsonFileInput.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        if (confirm('Load plan from JSON file? This will overwrite current inputs.')) {
+          const ok = this._state.loadFromJSON(e.target.result);
+          if (ok) { this.toast('Plan loaded from JSON file', 'success'); this.init(); }
+          else    { this.toast('Failed to load JSON file', 'error'); }
+        }
+      };
+      reader.readAsText(file);
+      jsonFileInput.value = '';
     });
   }
 

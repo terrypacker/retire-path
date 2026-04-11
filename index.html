@@ -48,8 +48,21 @@
         <button data-currency="AUD">AUD</button>
       </div>
       <span class="fx-rate-display" id="fx-rate-display">1 USD = 1.5800 AUD</span>
-      <button class="btn-icon" id="btn-save" title="Save plan">💾</button>
-      <button class="btn-icon" id="btn-load" title="Load plan">📂</button>
+      <div class="btn-icon-group">
+        <button class="btn-icon" id="btn-save" title="Save plan">💾</button>
+        <div class="icon-dropdown" id="save-dropdown">
+          <button class="icon-dropdown-item" id="btn-save-browser">Save to browser</button>
+          <button class="icon-dropdown-item" id="btn-save-json">Save as JSON file</button>
+        </div>
+      </div>
+      <div class="btn-icon-group">
+        <button class="btn-icon" id="btn-load" title="Load plan">📂</button>
+        <div class="icon-dropdown" id="load-dropdown">
+          <button class="icon-dropdown-item" id="btn-load-browser">Load from browser</button>
+          <button class="icon-dropdown-item" id="btn-load-json">Load from JSON file</button>
+        </div>
+      </div>
+      <input type="file" id="json-file-input" accept=".json" style="display:none">
       <button class="btn-icon" id="btn-bug" title="File bug">🐛</button>
     </div>
   </header>

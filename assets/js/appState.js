@@ -299,6 +299,27 @@ export class AppState {
     return false;
   }
 
+  exportJSON() {
+    return JSON.stringify(this._state, null, 2);
+  }
+
+  loadFromJSON(jsonString) {
+    try {
+      const parsed = JSON.parse(jsonString);
+      this._state = Object.assign(this._defaultState(), parsed);
+      const combined = parsed.combinedAnnualIncome;
+      if (combined && this._state.people) {
+        const perPerson = Math.round(combined / this._state.people.length);
+        this._state.people.forEach(p => { if (!p.annualIncome) p.annualIncome = perPerson; });
+      }
+      this.notify([]);
+      return true;
+    } catch(e) {
+      console.warn('Load from JSON failed', e);
+      return false;
+    }
+  }
+
   reset() {
     this._state = this._defaultState();
     this.notify([]);
