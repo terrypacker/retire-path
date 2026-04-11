@@ -19,12 +19,18 @@
 
 /**
  * BaseTaxModule.js
- * Abstract base class for country-specific tax modules.
+ * Abstract base class for country+year-specific tax modules.
+ * Provides shared bracket utilities used by all implementations.
  */
 
 export class BaseTaxModule {
-  constructor(countryCode) {
+  /**
+   * @param {string} countryCode  - e.g. 'US', 'AUS'
+   * @param {number} year         - The tax year this module represents (bracket base year)
+   */
+  constructor(countryCode, year) {
     this.countryCode = countryCode;
+    this.year = year;
   }
 
   /**
@@ -34,7 +40,7 @@ export class BaseTaxModule {
    * @returns {{ tax: number, effectiveRate: number, marginalRate: number, breakdown: [] }}
    */
   calcIncomeTax(grossIncome, context) {
-    throw new Error(`calcIncomeTax not implemented for ${this.countryCode}`);
+    throw new Error(`calcIncomeTax not implemented for ${this.countryCode} ${this.year}`);
   }
 
   /**
@@ -45,15 +51,15 @@ export class BaseTaxModule {
    * @returns {{ tax: number, effectiveRate: number }}
    */
   calcCapitalGainsTax(gain, income, context) {
-    throw new Error(`calcCapitalGainsTax not implemented for ${this.countryCode}`);
+    throw new Error(`calcCapitalGainsTax not implemented for ${this.countryCode} ${this.year}`);
   }
 
   /**
    * Returns tax brackets for display purposes.
-   * @param {number} year
+   * @param {number} targetYear - Year to project brackets to (defaults to this.year)
    * @returns {Array<{ min, max, rate, label }>}
    */
-  getBrackets(year) {
+  getBrackets(targetYear = this.year) {
     return [];
   }
 
@@ -67,5 +73,45 @@ export class BaseTaxModule {
    */
   accountTreatment(accountType, eventType, amount, context) {
     return { taxableAmount: amount, note: '' };
+  }
+
+  // ── Shared bracket utilities ──────────────────────────────────────────────
+
+  /**
+   * Inflate bracket thresholds from baseYear to targetYear.
+   * @param {Array}  brackets
+   * @param {number} baseYear
+   * @param {number} targetYear
+   * @param {number} inflationRate  - Annual rate (e.g. 0.025)
+   */
+  _inflateBrackets(brackets, baseYear, targetYear, inflationRate) {
+    const years = targetYear - baseYear;
+    const factor = Math.pow(1 + inflationRate, years);
+    return brackets.map(b => ({
+      min: b.min === 0 ? 0 : Math.round(b.min * factor),
+      max: b.max === Infinity ? Infinity : Math.round(b.max * factor),
+      rate: b.rate,
+    }));
+  }
+
+  /**
+   * Apply progressive tax brackets to an income amount.
+   * @param {number} income
+   * @param {Array}  brackets
+   * @returns {{ tax: number, marginalRate: number, breakdown: Array }}
+   */
+  _applyBrackets(income, brackets) {
+    let tax = 0;
+    let marginalRate = 0;
+    const breakdown = [];
+    for (const b of brackets) {
+      if (income <= b.min) break;
+      const taxable = Math.min(income, b.max) - b.min;
+      const t = taxable * b.rate;
+      tax += t;
+      marginalRate = b.rate;
+      if (t > 0) breakdown.push({ range: `${b.min}–${b.max === Infinity ? '∞' : b.max}`, rate: b.rate, tax: t });
+    }
+    return { tax, marginalRate, breakdown };
   }
 }

@@ -19,33 +19,55 @@
 
 /**
  * TaxEngine.js
- * Registry and dispatcher for pluggable country tax modules.
+ * Registry and dispatcher for pluggable country+year tax modules.
+ * Modules are keyed by 'COUNTRYCODE_YEAR' (e.g. 'US_2024').
+ * get(countryCode, year) resolves the best available module for a given year.
  */
 
-import { BaseTaxModule }       from './BaseTaxModule.js';
-import { USTaxModule }         from './USTaxModule.js';
-import { AustraliaTaxModule }  from './AustraliaTaxModule.js';
+import { BaseTaxModule }            from './BaseTaxModule.js';
+import { USTaxModule2024 }          from './USTaxModule2024.js';
+import { USTaxModule2025 }          from './USTaxModule2025.js';
+import { AustraliaTaxModule2024 }   from './AustraliaTaxModule2024.js';
+import { AustraliaTaxModule2025 }   from './AustraliaTaxModule2025.js';
 
 export class TaxEngine {
   constructor() {
     this._modules = {};
-    // Register built-in modules
-    this.register(new USTaxModule());
-    this.register(new AustraliaTaxModule());
+    this.register(new USTaxModule2024());
+    this.register(new USTaxModule2025());
+    this.register(new AustraliaTaxModule2024());
+    this.register(new AustraliaTaxModule2025());
   }
 
   register(module) {
     if (!(module instanceof BaseTaxModule)) {
       throw new Error('Tax module must extend BaseTaxModule');
     }
-    this._modules[module.countryCode] = module;
-    console.log(`[TaxEngine] Registered module: ${module.countryCode}`);
+    const key = `${module.countryCode}_${module.year}`;
+    this._modules[key] = module;
+    console.log(`[TaxEngine] Registered module: ${key}`);
   }
 
-  get(countryCode) {
-    const m = this._modules[countryCode];
-    if (!m) throw new Error(`No tax module for country: ${countryCode}`);
-    return m;
+  /**
+   * Returns the module for countryCode whose year is the highest available <= year.
+   * Falls back to the earliest registered module for that country if year is before all known years.
+   * @param {string} countryCode
+   * @param {number} year
+   * @returns {BaseTaxModule}
+   */
+  get(countryCode, year) {
+    const available = Object.keys(this._modules)
+      .filter(k => k.startsWith(countryCode + '_'))
+      .map(k => parseInt(k.split('_')[1]))
+      .sort((a, b) => a - b);
+
+    if (available.length === 0) {
+      throw new Error(`No tax module for country: ${countryCode}`);
+    }
+
+    // Highest registered year that is <= the requested year, or the earliest if none qualify
+    const best = available.filter(y => y <= year).pop() ?? available[0];
+    return this._modules[`${countryCode}_${best}`];
   }
 
   getAll() {
@@ -53,32 +75,31 @@ export class TaxEngine {
   }
 
   /**
-   * Returns the sorted list of tax years supported by all registered modules.
+   * Returns the sorted union of all registered years across all countries.
+   * Used to populate the tax base year selector in the UI.
    * @returns {number[]}
    */
   getAvailableYears() {
-    const moduleSets = this.getAll()
-      .filter(m => typeof m.getAvailableYears === 'function')
-      .map(m => m.getAvailableYears());
-    if (moduleSets.length === 0) return [];
-    return moduleSets.reduce((a, b) => a.filter(y => b.includes(y))).sort((a, b) => a - b);
+    const years = new Set(
+      Object.keys(this._modules).map(k => parseInt(k.split('_')[1]))
+    );
+    return Array.from(years).sort((a, b) => a - b);
   }
 
   hasModule(countryCode) {
-    return !!this._modules[countryCode];
+    return Object.keys(this._modules).some(k => k.startsWith(countryCode + '_'));
   }
 
   /**
-   * Determine which country's tax applies based on move date.
-   * US citizens pay US taxes on worldwide income always.
-   * After moving to AU, AU taxes also apply (FITO credit assumed 1:1 simplified).
+   * Returns the list of modules applicable to the given year based on move settings.
+   * US citizens always file US taxes; AU taxes also apply after the move date.
    */
   resolveApplicableModules(year, moveYear, moveEnabled) {
-    const modules = ['US']; // US citizens always file US taxes
+    const modules = [this.get('US', year)];
     if (moveEnabled && year >= moveYear) {
-      modules.push('AUS');
+      modules.push(this.get('AUS', year));
     }
-    return modules.map(c => this._modules[c]).filter(Boolean);
+    return modules;
   }
 }
 

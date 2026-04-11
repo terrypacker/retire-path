@@ -906,7 +906,7 @@ export class UIManager {
 
     if (usContainer) {
       // Show exact brackets for the selected base year (no forward inflation)
-      const brackets = taxEngine.get('US').getBrackets(taxBaseYear, taxBaseYear);
+      const brackets = taxEngine.get('US', taxBaseYear).getBrackets(taxBaseYear);
       const colors = ['#2563eb','#4a6fa5','#6b91cc','#3a8fa0','#c9a84c','#c0455a','#e05570'];
       const subEl = usContainer.closest('.card')?.querySelector('.card-subtitle');
       if (subEl) subEl.textContent = `MFJ — ${taxBaseYear} published rates`;
@@ -921,7 +921,7 @@ export class UIManager {
     }
 
     if (ausContainer) {
-      const brackets = taxEngine.get('AUS').getBrackets(taxBaseYear, taxBaseYear);
+      const brackets = taxEngine.get('AUS', taxBaseYear).getBrackets(taxBaseYear);
       const colors = ['#374151','#c9a84c','#e4c76b','#3d9e72','#c0455a'];
       const subEl = ausContainer.closest('.card')?.querySelector('.card-subtitle');
       if (subEl) subEl.textContent = `Individual rates — FY${taxBaseYear}-${String(taxBaseYear + 1).slice(-2)}`;

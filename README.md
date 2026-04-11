@@ -25,10 +25,14 @@ assets/js/
   uiManager.js            ← Input binding, KPI display, table rendering, modals
   debugLogger.js          ← Development logging utility
   tax/
-    BaseTaxModule.js      ← Abstract base class for country tax modules
-    USTaxModule.js        ← US federal income tax, LTCG, FICA, Social Security
-    AustraliaTaxModule.js ← Australian income tax, Medicare Levy, CGT, Super
-    TaxEngine.js          ← Registry + singleton (export const taxEngine)
+    BaseTaxModule.js           ← Abstract base class; shared _inflateBrackets/_applyBrackets utilities
+    USTaxModuleBase.js         ← Shared US logic: calcIncomeTax, calcCapitalGainsTax, accountTreatment, calcSocialSecurity
+    USTaxModule2024.js         ← US 2024 bracket data (IRS Rev. Proc. 2023-34)
+    USTaxModule2025.js         ← US 2025 bracket data (IRS Rev. Proc. 2024-40)
+    AustraliaTaxModuleBase.js  ← Shared AU logic: calcIncomeTax, calcCapitalGainsTax, accountTreatment, calcBrokerageAUGain
+    AustraliaTaxModule2024.js  ← AU FY2024-25 brackets (Stage 3 tax cuts)
+    AustraliaTaxModule2025.js  ← AU FY2025-26 brackets (30% rate extended to $135k)
+    TaxEngine.js               ← Registry keyed by 'COUNTRY_YEAR'; get(countryCode, year) with best-year fallback; singleton taxEngine
   ui/
     formatters.js         ← fmtShort(), makeFmt() — pure number formatting
     modalHelpers.js       ← setField(), getField(), closeModal() — pure DOM
@@ -41,7 +45,7 @@ assets/js/
 |------|------|
 | `appState.js` | Singleton `appState`. Pub/sub state store with localStorage persistence. All state mutations go through its methods. |
 | `projectionEngine.js` | Deterministic year-by-year simulation. Receives `appState` and `taxEngine` via constructor. |
-| `tax/TaxEngine.js` | Singleton `taxEngine`. Registry that dispatches to `USTaxModule` and `AustraliaTaxModule`. |
+| `tax/TaxEngine.js` | Singleton `taxEngine`. Registry keyed by `'COUNTRY_YEAR'`. `get(countryCode, year)` resolves the highest registered module whose year is ≤ the requested year, enabling forward projection via bracket inflation. |
 | `uiManager.js` | Receives `appState` via constructor. Binds inputs, renders projection table, manages modals. Imports helpers from `ui/`. |
 | `chartManager.js` | Imports `appState` singleton. Owns all Chart.js instances. |
 | `app.js` | Module entry point. Imports all modules, constructs `chartManager`, instantiates `UIManager`, subscribes to state changes. |
@@ -106,8 +110,11 @@ State changes are debounced 300ms before triggering a projection run.
 
 ## Key Patterns
 
+**Adding a new tax year:**
+Create a new file in `assets/js/tax/` named `{Country}TaxModule{YEAR}.js` that extends the country's base module (e.g. `USTaxModuleBase`). In the constructor call `super(year)` and set the year-specific data properties (`_brackets_mfj`, `_ltcg_mfj`, `_stdDeduction_mfj`, `_ficaWageBase` for US; `_brackets`, `_medicareLevy`, `_medicareLevySurcharge` for AU). If the new year requires different calculation logic, override the relevant method. Import and register the new module in `tax/TaxEngine.js`.
+
 **Adding a new tax jurisdiction:**
-Create a new file in `assets/js/tax/` that extends `BaseTaxModule` and implements `calcIncomeTax`, `calcCapitalGainsTax`, `getBrackets`, and `accountTreatment`. Import it in `tax/TaxEngine.js` and call `this.register(new YourModule())` in the constructor.
+Create a `{Country}TaxModuleBase.js` extending `BaseTaxModule` with all shared country logic. Add year-specific subclasses following the same pattern as US/AU. Import all year modules in `tax/TaxEngine.js` and register them in the constructor.
 
 **Adding a new account type:**
 1. Add to `AppState` default state and helper CRUD methods
@@ -131,7 +138,7 @@ The entire calculation pipeline is synchronous. No Promises, no async/await in t
 - **HTTP server required for local dev** — ES6 modules are blocked by browsers on `file://` origins.
 - **No automated tests exist** — manual browser testing is the current practice.
 - **Deterministic only** — the projection engine is intentionally deterministic (no Monte Carlo). Do not add stochastic modeling without discussion.
-- **Tax figures are year-specific** — US brackets are 2024 MFJ; Australian brackets are FY2024-25. Note the tax year when updating rates.
+- **Tax modules are country+year-specific** — each module represents one jurisdiction and one base year. The engine selects the best available module (highest year ≤ projection year) and inflates brackets forward from there. US modules carry 2024 and 2025 MFJ rates; AU modules carry FY2024-25 and FY2025-26 rates.
 
 ---
 

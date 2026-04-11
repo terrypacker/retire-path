@@ -79,7 +79,6 @@ export class ProjectionEngine {
     const people      = s.people;
     const moveYear    = s.moveToAustraliaYear;
     const moveEnabled = s.moveEnabled;
-    const taxBaseYear = s.taxBaseYear || 2024;
     const isPreMoveUS = !moveEnabled || year < moveYear;
     const isPostMove  = moveEnabled && year >= moveYear;
 
@@ -149,7 +148,7 @@ export class ProjectionEngine {
     let socialSecurityTotal = 0;
     people.forEach(p => {
       if (year <= p.birthYear + p.lifeExpectancy) {
-        const ssAmount = this._taxes.get('US').calcSocialSecurity(p, year);
+        const ssAmount = this._taxes.get('US', year).calcSocialSecurity(p, year);
         socialSecurityTotal += ssAmount;
         personIncome[p.id].ss = ssAmount;
       }
@@ -197,10 +196,10 @@ export class ProjectionEngine {
       const canWithdraw = ownerAge >= (acc.withdrawalStartAge || 59.5);
       if (isRetired && canWithdraw && withdrawalGapRemaining > 0 && bal > 0) {
         // Tax treatment
-        const treatCtx  = { age: ownerAge, year, taxBaseYear, moveValueBasis: acc.moveValueBasis || null };
+        const treatCtx  = { age: ownerAge, year, moveValueBasis: acc.moveValueBasis || null };
         const treatment = isPostMove
-          ? this._taxes.get('AUS').accountTreatment(acc.type, 'withdrawal', withdrawalGapRemaining, treatCtx)
-          : this._taxes.get('US').accountTreatment(acc.type, 'withdrawal', withdrawalGapRemaining, treatCtx);
+          ? this._taxes.get('AUS', year).accountTreatment(acc.type, 'withdrawal', withdrawalGapRemaining, treatCtx)
+          : this._taxes.get('US', year).accountTreatment(acc.type, 'withdrawal', withdrawalGapRemaining, treatCtx);
         const withdrawal = Math.min(bal, withdrawalGapRemaining);
         bal -= withdrawal;
         withdrawalGapRemaining -= withdrawal;
@@ -229,7 +228,7 @@ export class ProjectionEngine {
       // Check if sold this year
       if (prop.plannedSaleYear && year === prop.plannedSaleYear) {
         const gain = Math.max(0, value - (prop.costBasis || value * 0.6));
-        const cgt  = this._taxes.get('US').calcCapitalGainsTax(gain, employmentIncome, { year, holdingPeriodDays: 1000, taxBaseYear });
+        const cgt  = this._taxes.get('US', year).calcCapitalGainsTax(gain, employmentIncome, { year, holdingPeriodDays: 1000 });
         const netProceeds = value - mortgage - cgt.tax;
         propertySaleIncome += netProceeds;
         propertySaleDetails.push({ label: `${prop.name} (Sale)`, amount: netProceeds, grossValue: value, mortgagePaid: mortgage, cgt: cgt.tax });
@@ -286,7 +285,7 @@ export class ProjectionEngine {
 
         // Post-move: AU CGT on gains accrued after becoming Australian resident
         if (isPostMove) {
-          const auMod = this._taxes.get('AUS');
+          const auMod = this._taxes.get('AUS', year);
           const { auTaxableGain } = auMod.calcBrokerageAUGain(
             withdrawal, preWithdrawalBalance, brok.moveValueBasis || null, preWithdrawalCostBasis
           );
@@ -294,7 +293,7 @@ export class ProjectionEngine {
             brokerageAUCGTTotal += auMod.calcCapitalGainsTax(
               auTaxableGain,
               employmentIncome + socialSecurityTotal,
-              { year, holdingPeriodDays: 400, isResident: true, taxBaseYear }
+              { year, holdingPeriodDays: 400, isResident: true }
             ).tax;
           }
         }
@@ -331,14 +330,14 @@ export class ProjectionEngine {
     let usCGTResult = { tax: 0 };
     if (totalIncome > 0) {
       const ordinaryIncome = totalIncome - brokerageGainWithdrawn;
-      const usResult = this._taxes.get('US').calcIncomeTax(ordinaryIncome, {
-        year, filingStatus: 'mfj', isRetired: allRetired, taxBaseYear,
+      const usResult = this._taxes.get('US', year).calcIncomeTax(ordinaryIncome, {
+        year, filingStatus: 'mfj', isRetired: allRetired,
       });
       usTax = usResult.tax;
       if (brokerageGainWithdrawn > 0) {
-        usCGTResult = this._taxes.get('US').calcCapitalGainsTax(
+        usCGTResult = this._taxes.get('US', year).calcCapitalGainsTax(
           brokerageGainWithdrawn, ordinaryIncome,
-          { year, holdingPeriodDays: 400, isResident: true, taxBaseYear }
+          { year, holdingPeriodDays: 400, isResident: true }
         );
         usTax += usCGTResult.tax;
       }
@@ -358,14 +357,14 @@ export class ProjectionEngine {
     // FITO (Foreign Income Tax Offset): AU liability reduced by US tax already paid, simplified 1:1.
     // Note: AU module expects AUD; amounts here are USD. The FITO offset partially corrects for this.
     if (isPostMove) {
-      const auMod = this._taxes.get('AUS');
+      const auMod = this._taxes.get('AUS', year);
       let auIncomeTaxTotal = 0;
       people.forEach(p => {
         if (year > p.birthYear + p.lifeExpectancy) return;
         const pIncome = personIncome[p.id];
         const personAUIncome = pIncome.employment + pIncome.withdrawals;
         if (personAUIncome > 0) {
-          const auResult = auMod.calcIncomeTax(personAUIncome, { year, isResident: true, taxBaseYear });
+          const auResult = auMod.calcIncomeTax(personAUIncome, { year, isResident: true });
           auIncomeTaxTotal += auResult.tax;
           // Per-person AU tax detail (show gross income tax then LITO as a credit)
           const grossIncomeTax = auResult.incomeTax + auResult.lito;
