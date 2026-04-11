@@ -25,6 +25,8 @@
 class ChartManager {
   constructor() {
     this._charts = {};
+    this._milestonesByYear = null;
+    this._eventAnnotations = {};
     Chart.defaults.color = '#8a94b0';
     Chart.defaults.font.family = "'IBM Plex Sans', sans-serif";
     Chart.defaults.font.size   = 11;
@@ -65,6 +67,7 @@ class ChartManager {
       plugins: {
         legend: { display: false },
         title: { display: false },
+        annotation: { annotations: this._eventAnnotations },
         tooltip: {
           backgroundColor: '#1c2333',
           borderColor: '#2a3148',
@@ -77,7 +80,8 @@ class ChartManager {
               const symbol = appState.getCurrencySymbol();
               const val = appState.toDisplayCurrency(ctx.raw);
               return ` ${ctx.dataset.label}: ${symbol}${this._fmt(val)}`;
-            }
+            },
+            afterBody: this._afterBodyMilestones(),
           }
         }
       },
@@ -103,6 +107,43 @@ class ChartManager {
     if (Math.abs(n) >= 1_000_000) return (n / 1_000_000).toFixed(1) + 'M';
     if (Math.abs(n) >= 1_000)     return (n / 1_000).toFixed(0) + 'K';
     return n.toFixed(0);
+  }
+
+  // ── Event annotation helpers ──────────────────────────────────────────────
+
+  /** Build Chart.js annotation objects for each milestone year. */
+  _buildEventAnnotations(years) {
+    const annotations = {};
+    years.forEach(yd => {
+      if (!yd.milestones || yd.milestones.length === 0) return;
+      // Pick color by priority: death > property sale > move > retirement/other
+      let color = 'rgba(138,148,176,0.55)';
+      if (yd.milestones.some(m => m.includes('✝')))    color = 'rgba(192,69,90,0.75)';
+      else if (yd.milestones.some(m => m.includes('🏠'))) color = 'rgba(201,168,76,0.75)';
+      else if (yd.milestones.some(m => m.includes('🇦🇺'))) color = 'rgba(58,143,160,0.75)';
+      else if (yd.milestones.some(m => m.includes('retires'))) color = 'rgba(61,158,114,0.75)';
+
+      annotations[`evt_${yd.year}`] = {
+        type: 'line',
+        xMin: yd.year,
+        xMax: yd.year,
+        borderColor: color,
+        borderWidth: 1.5,
+        borderDash: [5, 4],
+      };
+    });
+    return annotations;
+  }
+
+  /** Returns an afterBody tooltip callback that appends milestone events for a given year. */
+  _afterBodyMilestones() {
+    return (items) => {
+      if (!this._milestonesByYear) return [];
+      const year = String(items[0]?.label);
+      const events = this._milestonesByYear.get(year);
+      if (events && events.length) return ['', ...events];
+      return [];
+    };
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -172,7 +213,8 @@ class ChartManager {
                 const totalUSD = items.reduce((s, i) => s + i.raw, 0);
                 const symbol = appState.getCurrencySymbol();
                 return `Total: ${symbol}${this._fmt(appState.toDisplayCurrency(totalUSD))}`;
-              }
+              },
+              afterBody: this._afterBodyMilestones(),
             }
           }
         },
@@ -370,7 +412,8 @@ class ChartManager {
                 const symbol = appState.getCurrencySymbol();
                 const val = appState.toDisplayCurrency(ctx.raw);
                 return ` ${ctx.dataset.label}: ${symbol}${this._fmt(val)}`;
-              }
+              },
+              afterBody: this._afterBodyMilestones(),
             }
           }
         },
@@ -444,7 +487,8 @@ class ChartManager {
                 borderColor: 'rgba(192,69,90,0.5)',
                 borderWidth: 1,
                 borderDash: [4, 4],
-              }
+              },
+              ...this._eventAnnotations,
             }
           }
         }
@@ -540,7 +584,8 @@ class ChartManager {
                 const total = items.reduce((s, i) => s + i.raw, 0);
                 const symbol = appState.getCurrencySymbol();
                 return `Total: ${symbol}${this._fmt(appState.toDisplayCurrency(total))}`;
-              }
+              },
+              afterBody: this._afterBodyMilestones(),
             }
           }
         },
@@ -551,6 +596,15 @@ class ChartManager {
   // ── Refresh all charts with new data ─────────────────────────────────────
   updateAll(years) {
     if (!years || years.length === 0) return;
+
+    // Pre-compute life event data used by all chart renders
+    this._milestonesByYear = new Map(
+      years
+        .filter(y => y.milestones && y.milestones.length > 0)
+        .map(y => [String(y.year), y.milestones])
+    );
+    this._eventAnnotations = this._buildEventAnnotations(years);
+
     this.renderNetWorth(years);
     this.renderIncomeExpenses(years);
     this.renderIncomeSources(years);

@@ -434,7 +434,11 @@ class ProjectionEngine {
       const age = year - p.birthYear;
       if (retiredFlags[i] && year === p.birthYear + p.retirementAge) m.push(`${p.name} retires (age ${age})`);
       if (year === p.birthYear + p.socialSecurityAge) m.push(`${p.name} Social Security starts`);
-      if (s.moveEnabled && year === s.moveToAustraliaYear) m.push('🇦🇺 Move to Australia');
+      if (year === p.birthYear + p.lifeExpectancy) m.push(`✝ ${p.name} passes (age ${p.lifeExpectancy})`);
+    });
+    if (s.moveEnabled && year === s.moveToAustraliaYear) m.push('🇦🇺 Move to Australia');
+    s.properties.forEach(prop => {
+      if (prop.plannedSaleYear && year === prop.plannedSaleYear) m.push(`🏠 ${prop.name} sold`);
     });
     return m;
   }
