@@ -77,7 +77,7 @@
     <ul>
       <li><strong>401(k)/IRA:</strong> Australia generally respects these as pension funds; growth may be deferred for AU purposes with a treaty election</li>
       <li><strong>Roth IRA:</strong> Tax-free in US; ATO may tax Roth earnings annually if no treaty election made</li>
-      <li><strong>Brokerage:</strong> Gains taxable in both countries; Foreign Tax Credit offsets US tax</li>
+      <li><strong>Brokerage:</strong> Only gains accrued after becoming an Australian resident are subject to Australian CGT (cost basis reset to FMV on move date); a treaty CGT credit reduces AU tax by US capital gains tax already paid on the same gain</li>
     </ul>
   </div>
   <div class="col-card aus">
@@ -100,6 +100,14 @@
 <h3>Australian Age Pension</h3>
 <p>The Australian Age Pension (currently eligible from age 67) is means and assets tested. If you have significant retirement savings, you may receive a partial or no pension. As a US citizen, your worldwide assets count in the assets test.</p>
 <p><em>Note: Age Pension is not currently modeled in this tool but is planned for a future update.</em></p>
+
+<h2>Capital Gains: How the Tool Models Double Taxation</h2>
+<p>After moving to Australia, both the US and Australia may tax the same capital gain on brokerage assets. The tool handles this in two steps:</p>
+<ul>
+  <li><strong>AU cost basis reset:</strong> Australia only taxes gains accrued <em>after</em> you became a tax resident. The brokerage cost basis is reset to the market value on the move date, so pre-move gains are not subject to Australian CGT.</li>
+  <li><strong>US CGT at preferential rates:</strong> Long-term brokerage gains are taxed by the US at 0%, 15%, or 20% (plus NIIT where applicable), <em>not</em> at ordinary income rates.</li>
+  <li><strong>Treaty CGT credit:</strong> The Australian CGT liability on post-move gains is reduced by the US capital gains tax already paid on the same gains — <code>auNetCGT = max(0, auCGT − usCGT)</code>. You pay the higher of the two countries' effective rates, not both in full.</li>
+</ul>
 
 <h2>Capital Gains: The Departure Tax Risk</h2>
 <div class="callout warn">

@@ -152,6 +152,7 @@ class ProjectionEngine {
     let totalAccountWithdrawals   = 0;
     let withdrawalGapRemaining    = expenseGap;
     let brokerageAUCGTTotal       = 0;
+    let brokerageGainWithdrawn    = 0;
 
     s.accounts.forEach(acc => {
       let bal = accBalances[acc.id] || 0;
@@ -249,7 +250,8 @@ class ProjectionEngine {
         const preWithdrawalCostBasis = costBasis;
         const withdrawal    = Math.min(balance, withdrawalGapRemaining);
         const gainFraction  = preWithdrawalBalance > 0 ? (preWithdrawalBalance - preWithdrawalCostBasis) / preWithdrawalBalance : 0;
-        const gainWithdrawn = withdrawal * Math.max(0, gainFraction);  // eslint-disable-line no-unused-vars
+        const gainWithdrawn = withdrawal * Math.max(0, gainFraction);
+        brokerageGainWithdrawn += gainWithdrawn;
         costBasis -= withdrawal * (1 - Math.max(0, gainFraction));
         balance   -= withdrawal;
         withdrawalGapRemaining -= withdrawal;
@@ -280,12 +282,22 @@ class ProjectionEngine {
     let usTax = 0;
     let auTax = 0;
 
-    // US tax always applies — US citizens are taxed on worldwide income
+    // US tax always applies — US citizens are taxed on worldwide income.
+    // Brokerage long-term gains are taxed at preferential rates (0/15/20%), not ordinary rates.
+    let usCGTResult = { tax: 0 };
     if (totalIncome > 0) {
-      const usResult = this._taxes.get('US').calcIncomeTax(totalIncome, {
+      const ordinaryIncome = totalIncome - brokerageGainWithdrawn;
+      const usResult = this._taxes.get('US').calcIncomeTax(ordinaryIncome, {
         year, filingStatus: 'mfj', isRetired: allRetired, taxBaseYear,
       });
       usTax = usResult.tax;
+      if (brokerageGainWithdrawn > 0) {
+        usCGTResult = this._taxes.get('US').calcCapitalGainsTax(
+          brokerageGainWithdrawn, ordinaryIncome,
+          { year, holdingPeriodDays: 400, isResident: true, taxBaseYear }
+        );
+        usTax += usCGTResult.tax;
+      }
     }
 
     // Post-move: AU income tax assessed per person (Australia taxes individuals separately).
@@ -310,7 +322,9 @@ class ProjectionEngine {
         ? usTax * (auTaxableTotal / totalIncome)
         : 0;
       const auNetIncomeTax = Math.max(0, auIncomeTaxTotal - usTaxOnAUIncome);
-      auTax = auNetIncomeTax + brokerageAUCGTTotal;
+      // Treaty credit for CGT: AU CGT reduced by US CGT already paid on the same gains.
+      const auNetCGT = Math.max(0, brokerageAUCGTTotal - usCGTResult.tax);
+      auTax = auNetIncomeTax + auNetCGT;
     }
 
     const estimatedTax = usTax + auTax;

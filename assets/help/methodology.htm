@@ -87,22 +87,47 @@
 <h2>Tax Modeling</h2>
 
 <h3>US Federal Income Tax</h3>
-<p>Applied using the 2024 Married Filing Jointly brackets, inflated at 2.5% annually for future years. Includes a simplified FICA component on employment income. The standard deduction is also inflated annually.</p>
+<p>Applied to ordinary income (employment, Social Security, 401k/IRA/Roth withdrawals) using the Married Filing Jointly brackets for the selected tax base year, inflated at 2.5% annually for future years. Includes a simplified FICA component on employment income. The standard deduction is also inflated annually.</p>
+<p>Brokerage capital gains are <strong>separated from ordinary income</strong> and taxed at preferential long-term rates rather than at ordinary bracket rates (see US Capital Gains Tax below).</p>
 
 <h3>US Capital Gains Tax</h3>
+<p>When brokerage accounts are drawn down in retirement, the gain portion of each withdrawal (gain fraction × withdrawal amount) is taxed at long-term capital gains rates, separately from ordinary income:</p>
 <ul>
-  <li>Short-term gains (&lt;365 days): taxed as ordinary income</li>
-  <li>Long-term gains (365+ days): 0%, 15%, or 20% based on income</li>
-  <li>Net Investment Income Tax (NIIT): 3.8% on investment income above $250K (MFJ)</li>
+  <li>Long-term gains (assumed held 12+ months): 0%, 15%, or 20% based on total income level</li>
+  <li>Net Investment Income Tax (NIIT): 3.8% on investment income above $250K MFJ threshold</li>
+  <li>Short-term gains (&lt;365 days): taxed as ordinary income (not currently triggered — all brokerage withdrawals are treated as long-term)</li>
 </ul>
+<div class="formula">
+US total tax = calcIncomeTax(ordinaryIncome) + calcCapitalGainsTax(brokerageGain, ordinaryIncome)
+</div>
+
+<h3>Double Taxation Relief (US-Australia Treaty)</h3>
+<p>Because the US taxes worldwide income of its citizens and Australia taxes worldwide income of residents, both countries have a claim on the same income after the move. The US-Australia Tax Treaty (1982, updated 2001) provides relief in two forms, both modeled here:</p>
+
+<h4 style="color:#c9d4f0; font-size:0.85rem; margin:12px 0 4px;">Income Tax — Australian FITO</h4>
+<p>Australian income tax is reduced by the portion of US income tax already paid on the same income (Foreign Income Tax Offset). Social Security is excluded from the Australian base as it is taxable only by the US under the Totalization Agreement.</p>
+<div class="formula">
+auTaxableIncome  = employment + accountWithdrawals  (excludes Social Security)
+usTaxOnAUIncome  = usTax × (auTaxableIncome / totalIncome)
+auNetIncomeTax   = max(0, auIncomeTax − usTaxOnAUIncome)
+</div>
+<p>The net effect: each dollar of income is taxed at the <em>higher</em> of the US or Australian rate, not both in full.</p>
+
+<h4 style="color:#c9d4f0; font-size:0.85rem; margin:12px 0 4px;">Capital Gains — CGT Credit</h4>
+<p>When brokerage assets are sold post-move, both the US and Australia may tax the gain. The model applies a treaty credit: the Australian CGT liability on post-move gains is reduced by the US capital gains tax already assessed on those same gains.</p>
+<div class="formula">
+auNetCGT = max(0, auCGT − usCGT)
+</div>
+<p>Because Australia's CGT rates (marginal rate on 50%-discounted gain) are often close to or above US long-term rates, this credit is typically partial — you still pay some Australian CGT on gains that exceed the US tax. The result is that on any given gain, you pay the higher of the two countries' effective rates, not both in full.</p>
 
 <h3>Australian Income Tax (post-move)</h3>
-<p>Australian marginal rates (2024-25) are applied to income arising in Australia. US citizens must also file US taxes on worldwide income — the model applies US tax as primary and assumes Foreign Tax Credit offsets to avoid double taxation (simplified).</p>
+<p>Australian marginal rates for the selected tax base year are applied per person (Australia taxes individuals, not couples jointly). Rates are inflated at 3.0% annually. The Low Income Tax Offset (LITO) and Medicare Levy (2%) are included.</p>
 
 <h3>Australian Capital Gains Tax</h3>
 <ul>
+  <li>Only gains accrued <em>after</em> establishing Australian tax residency are subject to Australian CGT — the cost basis is reset to the market value on the move date</li>
   <li>Assets held &gt;12 months: 50% CGT discount for residents (taxable gain = 50% of nominal gain)</li>
-  <li>Gain is stacked on top of ordinary income and taxed at marginal rate</li>
+  <li>Discounted gain is stacked on top of ordinary income and taxed at the marginal rate</li>
   <li>Non-residents do not get the 50% discount</li>
 </ul>
 
