@@ -35,6 +35,7 @@ class AppState {
       // ── Display ──────────────────────────────────────────
       currency: 'USD',          // 'USD' | 'AUD'
       fxRate: 1.58,             // 1 USD = X AUD
+      taxBaseYear: 2025,        // Which year's published tax rates to use as base
 
       // ── People ───────────────────────────────────────────
       people: [

@@ -76,24 +76,61 @@ class BaseTaxModule {
 class USTaxModule extends BaseTaxModule {
   constructor() {
     super('US');
-    // 2024 brackets (MFJ) – inflate annually at ~2%
-    this._brackets2024_mfj = [
-      { min: 0,       max: 23200,  rate: 0.10 },
-      { min: 23200,   max: 94300,  rate: 0.12 },
-      { min: 94300,   max: 201050, rate: 0.22 },
-      { min: 201050,  max: 383900, rate: 0.24 },
-      { min: 383900,  max: 487450, rate: 0.32 },
-      { min: 487450,  max: 731200, rate: 0.35 },
-      { min: 731200,  max: Infinity, rate: 0.37 },
-    ];
-    // 2024 LTCG brackets (MFJ)
-    this._ltcgBrackets2024_mfj = [
-      { min: 0,       max: 94050,  rate: 0.00 },
-      { min: 94050,   max: 583750, rate: 0.15 },
-      { min: 583750,  max: Infinity, rate: 0.20 },
-    ];
-    this._standardDeduction2024_mfj = 29200;
+    // Published bracket data keyed by tax year
+    this._rateData = {
+      2024: {
+        brackets_mfj: [
+          { min: 0,       max: 23200,  rate: 0.10 },
+          { min: 23200,   max: 94300,  rate: 0.12 },
+          { min: 94300,   max: 201050, rate: 0.22 },
+          { min: 201050,  max: 383900, rate: 0.24 },
+          { min: 383900,  max: 487450, rate: 0.32 },
+          { min: 487450,  max: 731200, rate: 0.35 },
+          { min: 731200,  max: Infinity, rate: 0.37 },
+        ],
+        ltcg_mfj: [
+          { min: 0,       max: 94050,  rate: 0.00 },
+          { min: 94050,   max: 583750, rate: 0.15 },
+          { min: 583750,  max: Infinity, rate: 0.20 },
+        ],
+        stdDeduction_mfj: 29200,
+      },
+      2025: {
+        // IRS Rev. Proc. 2024-40 — tax year 2025 MFJ
+        brackets_mfj: [
+          { min: 0,       max: 23850,  rate: 0.10 },
+          { min: 23850,   max: 96950,  rate: 0.12 },
+          { min: 96950,   max: 206700, rate: 0.22 },
+          { min: 206700,  max: 394600, rate: 0.24 },
+          { min: 394600,  max: 501050, rate: 0.32 },
+          { min: 501050,  max: 751600, rate: 0.35 },
+          { min: 751600,  max: Infinity, rate: 0.37 },
+        ],
+        ltcg_mfj: [
+          { min: 0,       max: 96700,  rate: 0.00 },
+          { min: 96700,   max: 600050, rate: 0.15 },
+          { min: 600050,  max: Infinity, rate: 0.20 },
+        ],
+        stdDeduction_mfj: 30000,
+      },
+    };
     this._niit = 0.038; // Net Investment Income Tax above $250k MFJ
+  }
+
+  /**
+   * Returns the rate data for the closest available year <= taxBaseYear.
+   * @param {number} taxBaseYear
+   * @returns {{ data: object, year: number }}
+   */
+  _getRateData(taxBaseYear) {
+    const years = Object.keys(this._rateData).map(Number).sort((a, b) => b - a);
+    const bestYear = years.find(y => y <= taxBaseYear) || years[years.length - 1];
+    return { data: this._rateData[bestYear], year: bestYear };
+  }
+
+  /** @returns {number[]} Sorted list of years with published bracket data */
+  getAvailableYears() {
+    return Object.keys(this._rateData).map(Number).sort((a, b) => a - b);
   }
 
   _inflateBrackets(brackets, baseYear, targetYear, inflationRate = 0.025) {
@@ -122,9 +159,10 @@ class USTaxModule extends BaseTaxModule {
   }
 
   calcIncomeTax(grossIncome, context = {}) {
-    const { year = 2024, filingStatus = 'mfj' } = context;
-    const brackets = this._inflateBrackets(this._brackets2024_mfj, 2024, year);
-    const stdDed   = Math.round(this._standardDeduction2024_mfj * Math.pow(1.025, year - 2024));
+    const { year = 2024, filingStatus = 'mfj', taxBaseYear = 2024 } = context;
+    const { data, year: baseYear } = this._getRateData(taxBaseYear);
+    const brackets = this._inflateBrackets(data.brackets_mfj, baseYear, year);
+    const stdDed   = Math.round(data.stdDeduction_mfj * Math.pow(1.025, year - baseYear));
     const taxable  = Math.max(0, grossIncome - stdDed);
     const { tax, marginalRate, breakdown } = this._applyBrackets(taxable, brackets);
     // FICA (simplified, capped for high earners — only on wages)
@@ -142,23 +180,24 @@ class USTaxModule extends BaseTaxModule {
   }
 
   calcCapitalGainsTax(gain, income, context = {}) {
-    const { year = 2024, holdingPeriodDays = 400, isResident = true } = context;
+    const { year = 2024, holdingPeriodDays = 400, isResident = true, taxBaseYear = 2024 } = context;
+    const { data, year: baseYear } = this._getRateData(taxBaseYear);
     const isLongTerm = holdingPeriodDays >= 365;
     let tax = 0;
     if (!isLongTerm) {
       // Short-term: ordinary income rates
       const totalIncome = income + gain;
-      const brackets = this._inflateBrackets(this._brackets2024_mfj, 2024, year);
-      const stdDed = Math.round(this._standardDeduction2024_mfj * Math.pow(1.025, year - 2024));
+      const brackets = this._inflateBrackets(data.brackets_mfj, baseYear, year);
+      const stdDed = Math.round(data.stdDeduction_mfj * Math.pow(1.025, year - baseYear));
       const baseResult = this._applyBrackets(Math.max(0, income - stdDed), brackets);
       const totalResult = this._applyBrackets(Math.max(0, totalIncome - stdDed), brackets);
       tax = totalResult.tax - baseResult.tax;
     } else {
-      const ltcgBrackets = this._inflateBrackets(this._ltcgBrackets2024_mfj, 2024, year);
+      const ltcgBrackets = this._inflateBrackets(data.ltcg_mfj, baseYear, year);
       const { tax: t } = this._applyBrackets(gain, ltcgBrackets);
       tax = t;
       // NIIT
-      const niitThreshold = Math.round(250000 * Math.pow(1.025, year - 2024));
+      const niitThreshold = Math.round(250000 * Math.pow(1.025, year - baseYear));
       if (income + gain > niitThreshold) {
         tax += Math.min(gain, (income + gain) - niitThreshold) * this._niit;
       }
@@ -196,8 +235,9 @@ class USTaxModule extends BaseTaxModule {
     return { taxableAmount: amount, note: '' };
   }
 
-  getBrackets(year = 2024) {
-    return this._inflateBrackets(this._brackets2024_mfj, 2024, year).map(b => ({
+  getBrackets(year = 2024, taxBaseYear = null) {
+    const { data, year: baseYear } = this._getRateData(taxBaseYear !== null ? taxBaseYear : year);
+    return this._inflateBrackets(data.brackets_mfj, baseYear, year).map(b => ({
       ...b,
       label: `${(b.rate * 100).toFixed(0)}%`,
     }));
@@ -219,17 +259,48 @@ class USTaxModule extends BaseTaxModule {
 class AustraliaTaxModule extends BaseTaxModule {
   constructor() {
     super('AUS');
-    // FY2024-25 brackets (AUD)
-    this._brackets2024 = [
-      { min: 0,       max: 18200,   rate: 0.00 },
-      { min: 18200,   max: 45000,   rate: 0.19 },
-      { min: 45000,   max: 120000,  rate: 0.325 },
-      { min: 120000,  max: 180000,  rate: 0.37 },
-      { min: 180000,  max: Infinity, rate: 0.45 },
-    ];
+    // Published bracket data keyed by tax year (calendar year = FY starting Jul of that year)
+    this._rateData = {
+      2024: {
+        // FY2024-25 — Stage 3 tax cut rates (ATO)
+        brackets: [
+          { min: 0,       max: 18200,   rate: 0.00 },
+          { min: 18200,   max: 45000,   rate: 0.19 },
+          { min: 45000,   max: 120000,  rate: 0.325 },
+          { min: 120000,  max: 180000,  rate: 0.37 },
+          { min: 180000,  max: Infinity, rate: 0.45 },
+        ],
+      },
+      2025: {
+        // FY2025-26 — same rates as FY2024-25 (no bracket changes announced)
+        brackets: [
+          { min: 0,       max: 18200,   rate: 0.00 },
+          { min: 18200,   max: 45000,   rate: 0.19 },
+          { min: 45000,   max: 135000,  rate: 0.30 },
+          { min: 135000,  max: 190000,  rate: 0.37 },
+          { min: 190000,  max: Infinity, rate: 0.45 },
+        ],
+      },
+    };
     this._medicareLevy = 0.02;
     this._superTaxRate = 0.15; // within-fund contributions tax
     this._superWithdrawalTaxUnder60 = 0.20; // simplified
+  }
+
+  /**
+   * Returns the rate data for the closest available year <= taxBaseYear.
+   * @param {number} taxBaseYear
+   * @returns {{ data: object, year: number }}
+   */
+  _getRateData(taxBaseYear) {
+    const years = Object.keys(this._rateData).map(Number).sort((a, b) => b - a);
+    const bestYear = years.find(y => y <= taxBaseYear) || years[years.length - 1];
+    return { data: this._rateData[bestYear], year: bestYear };
+  }
+
+  /** @returns {number[]} Sorted list of years with published bracket data */
+  getAvailableYears() {
+    return Object.keys(this._rateData).map(Number).sort((a, b) => a - b);
   }
 
   _inflateBrackets(brackets, baseYear, targetYear, inflationRate = 0.03) {
@@ -258,8 +329,9 @@ class AustraliaTaxModule extends BaseTaxModule {
   }
 
   calcIncomeTax(grossIncome, context = {}) {
-    const { year = 2024, isResident = true } = context;
-    const brackets = this._inflateBrackets(this._brackets2024, 2024, year);
+    const { year = 2024, isResident = true, taxBaseYear = 2024 } = context;
+    const { data, year: baseYear } = this._getRateData(taxBaseYear);
+    const brackets = this._inflateBrackets(data.brackets, baseYear, year);
     const { tax, marginalRate, breakdown } = this._applyBrackets(grossIncome, brackets);
     const medicare = grossIncome > 26000 ? grossIncome * this._medicareLevy : 0;
     // LITO (Low Income Tax Offset) — simplified
@@ -282,10 +354,11 @@ class AustraliaTaxModule extends BaseTaxModule {
 
   calcCapitalGainsTax(gain, income, context = {}) {
     // Australia: 50% CGT discount for assets held >12 months (residents)
-    const { holdingPeriodDays = 400, isResident = true, year = 2024 } = context;
+    const { holdingPeriodDays = 400, isResident = true, year = 2024, taxBaseYear = 2024 } = context;
+    const { data, year: baseYear } = this._getRateData(taxBaseYear);
     const discount = isResident && holdingPeriodDays >= 365 ? 0.5 : 1.0;
     const taxableGain = gain * discount;
-    const brackets = this._inflateBrackets(this._brackets2024, 2024, year);
+    const brackets = this._inflateBrackets(data.brackets, baseYear, year);
     // Marginal rate on gain stacked on top of income
     const baseResult = this._applyBrackets(income, brackets);
     const totalResult = this._applyBrackets(income + taxableGain, brackets);
@@ -319,8 +392,9 @@ class AustraliaTaxModule extends BaseTaxModule {
     return { taxableAmount: amount, note: '' };
   }
 
-  getBrackets(year = 2024) {
-    return this._inflateBrackets(this._brackets2024, 2024, year).map(b => ({
+  getBrackets(year = 2024, taxBaseYear = null) {
+    const { data, year: baseYear } = this._getRateData(taxBaseYear !== null ? taxBaseYear : year);
+    return this._inflateBrackets(data.brackets, baseYear, year).map(b => ({
       ...b,
       label: `${(b.rate * 100).toFixed(0)}%`,
     }));
@@ -352,6 +426,18 @@ class TaxEngine {
 
   getAll() {
     return Object.values(this._modules);
+  }
+
+  /**
+   * Returns the sorted list of tax years supported by all registered modules.
+   * @returns {number[]}
+   */
+  getAvailableYears() {
+    const moduleSets = this.getAll()
+      .filter(m => typeof m.getAvailableYears === 'function')
+      .map(m => m.getAvailableYears());
+    if (moduleSets.length === 0) return [];
+    return moduleSets.reduce((a, b) => a.filter(y => b.includes(y))).sort((a, b) => a - b);
   }
 
   hasModule(countryCode) {

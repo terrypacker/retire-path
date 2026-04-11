@@ -79,6 +79,7 @@ class ProjectionEngine {
     const people      = s.people;
     const moveYear    = s.moveToAustraliaYear;
     const moveEnabled = s.moveEnabled;
+    const taxBaseYear = s.taxBaseYear || 2024;
     const isPreMoveUS = !moveEnabled || year < moveYear;
     const isPostMove  = moveEnabled && year >= moveYear;
 
@@ -195,7 +196,7 @@ class ProjectionEngine {
       // Check if sold this year
       if (prop.plannedSaleYear && year === prop.plannedSaleYear) {
         const gain = Math.max(0, value - (prop.costBasis || value * 0.6));
-        const cgt  = this._taxes.get('US').calcCapitalGainsTax(gain, employmentIncome, { year, holdingPeriodDays: 1000 });
+        const cgt  = this._taxes.get('US').calcCapitalGainsTax(gain, employmentIncome, { year, holdingPeriodDays: 1000, taxBaseYear });
         const netProceeds = value - mortgage - cgt.tax;
         propertySaleIncome += netProceeds;
         nextPropValues[prop.id] = { value: 0, mortgage: 0 };
@@ -254,6 +255,7 @@ class ProjectionEngine {
         year,
         filingStatus: 'mfj',
         isRetired: allRetired,
+        taxBaseYear,
       });
       estimatedTax = result.tax;
     }

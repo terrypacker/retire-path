@@ -37,6 +37,7 @@ class UIManager {
     this._bindFinanceInputs();
     this._bindMoveSlider();
     this._bindCurrencyToggle();
+    this._bindTaxYearSelect();
     this._bindFxRate();
     this._bindSaveLoad();
     this._renderAccountList();
@@ -133,6 +134,18 @@ class UIManager {
     const cur = this._state.get('currency');
     document.querySelectorAll('.currency-toggle button').forEach(btn => {
       if (btn.dataset.currency === cur) btn.classList.add('active');
+    });
+  }
+
+  // ── Tax Year Select ───────────────────────────────────────────────────────
+  _bindTaxYearSelect() {
+    const select = document.getElementById('tax-year-select');
+    if (!select) return;
+    const years = taxEngine.getAvailableYears();
+    select.innerHTML = years.map(y => `<option value="${y}">${y} Rates</option>`).join('');
+    select.value = this._state.get('taxBaseYear');
+    select.addEventListener('change', () => {
+      this._state.set('taxBaseYear', +select.value);
     });
   }
 
@@ -572,11 +585,14 @@ class UIManager {
   renderTaxBrackets() {
     const usContainer  = document.getElementById('us-tax-brackets');
     const ausContainer = document.getElementById('aus-tax-brackets');
-    const year = new Date().getFullYear();
+    const taxBaseYear  = this._state.get('taxBaseYear');
 
     if (usContainer) {
-      const brackets = taxEngine.get('US').getBrackets(year);
+      // Show exact brackets for the selected base year (no forward inflation)
+      const brackets = taxEngine.get('US').getBrackets(taxBaseYear, taxBaseYear);
       const colors = ['#2563eb','#4a6fa5','#6b91cc','#3a8fa0','#c9a84c','#c0455a','#e05570'];
+      const subEl = usContainer.closest('.card')?.querySelector('.card-subtitle');
+      if (subEl) subEl.textContent = `MFJ — ${taxBaseYear} published rates`;
       usContainer.innerHTML = brackets.map((b, i) => `
         <div class="tax-band">
           <div class="tax-swatch" style="background:${colors[i % colors.length]}"></div>
@@ -588,8 +604,10 @@ class UIManager {
     }
 
     if (ausContainer) {
-      const brackets = taxEngine.get('AUS').getBrackets(year);
+      const brackets = taxEngine.get('AUS').getBrackets(taxBaseYear, taxBaseYear);
       const colors = ['#374151','#c9a84c','#e4c76b','#3d9e72','#c0455a'];
+      const subEl = ausContainer.closest('.card')?.querySelector('.card-subtitle');
+      if (subEl) subEl.textContent = `Individual rates — FY${taxBaseYear}-${String(taxBaseYear + 1).slice(-2)}`;
       ausContainer.innerHTML = brackets.map((b, i) => `
         <div class="tax-band">
           <div class="tax-swatch" style="background:${colors[i % colors.length]}"></div>

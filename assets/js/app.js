@@ -74,6 +74,7 @@ class App {
       chartManager.updateAll(years);
       uiManager.updateKPIs(years);
       uiManager.renderProjectionTable(years);
+      uiManager.renderTaxBrackets();
     } catch (err) {
       console.error('[App] Projection error:', err);
       uiManager.toast('Projection error — check inputs', 'error');

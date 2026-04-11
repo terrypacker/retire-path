@@ -196,6 +196,27 @@ body {
 }
 .btn-icon:hover { background: var(--bg-card); color: var(--text-primary); }
 
+.header-select {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 0.72rem;
+  padding: 5px 8px;
+  cursor: pointer;
+  transition: var(--transition);
+  appearance: none;
+  -webkit-appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M0 0l5 6 5-6z' fill='%238a94b0'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  padding-right: 24px;
+}
+.header-select:hover { border-color: var(--accent-blue); color: var(--text-primary); }
+.header-select:focus { outline: none; border-color: var(--accent-blue); }
+.header-select option { background: var(--bg-secondary); color: var(--text-primary); }
+
 /* ── Main Content Area ── */
 .app-body {
   display: flex;
