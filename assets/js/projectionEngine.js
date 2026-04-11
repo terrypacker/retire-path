@@ -216,6 +216,7 @@ class ProjectionEngine {
 
     // ── Property appreciation & equity ────────────────────────────────────────
     const nextPropValues = {};
+    const pendingDeposits = {}; // property sale proceeds keyed by destination account/brokerage ID
     let totalPropertyEquity  = 0;
     let totalPropertyValue   = 0;
     let propertySaleIncome   = 0;
@@ -233,6 +234,13 @@ class ProjectionEngine {
         propertySaleIncome += netProceeds;
         propertySaleDetails.push({ label: `${prop.name} (Sale)`, amount: netProceeds, grossValue: value, mortgagePaid: mortgage, cgt: cgt.tax });
         nextPropValues[prop.id] = { value: 0, mortgage: 0 };
+        // Route net proceeds into the chosen destination account (brokerage or retirement)
+        const destId = prop.saleDestinationId ||
+          (s.brokerageAccounts.length > 0 ? s.brokerageAccounts[0].id : null) ||
+          (s.accounts.length > 0 ? s.accounts[0].id : null);
+        if (destId) {
+          pendingDeposits[destId] = (pendingDeposits[destId] || 0) + netProceeds;
+        }
         return;
       }
 
@@ -294,6 +302,21 @@ class ProjectionEngine {
 
       totalBrokerageValue += balance;
       nextBrokValues[brok.id] = { balance: Math.max(0, balance), costBasis: Math.max(0, costBasis) };
+    });
+
+    // ── Deposit property sale proceeds into destination accounts ──────────────
+    // Proceeds are deposited after all withdrawal logic so they carry forward as assets.
+    Object.entries(pendingDeposits).forEach(([destId, amount]) => {
+      if (nextBrokValues[destId] !== undefined) {
+        // Brokerage destination: add to balance and cost basis (no embedded gain on fresh cash)
+        nextBrokValues[destId].balance  += amount;
+        nextBrokValues[destId].costBasis += amount;
+        totalBrokerageValue += amount;
+      } else if (nextAccBalances[destId] !== undefined) {
+        // Retirement account destination: add to balance
+        // totalAccountValue is computed from nextAccBalances after this, so it auto-includes this
+        nextAccBalances[destId] += amount;
+      }
     });
 
     // ── Tax estimate ──────────────────────────────────────────────────────────

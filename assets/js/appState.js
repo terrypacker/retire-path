@@ -145,6 +145,7 @@ class AppState {
           isPrimaryResidence: true,
           plannedSaleYear: null,
           costBasis: 420000,
+          saleDestinationId: null,
         }
       ],
 

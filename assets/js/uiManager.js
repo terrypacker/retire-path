@@ -510,6 +510,19 @@ class UIManager {
   }
 
   // ── Property Modal ────────────────────────────────────────────────────────
+  _populateSaleDestination(selectedId) {
+    const select = document.getElementById('prop-sale-destination');
+    if (!select) return;
+    const broks = this._state.get('brokerageAccounts');
+    const accts = this._state.get('accounts');
+    const firstBrokName = broks.length > 0 ? broks[0].name : 'first brokerage';
+    select.innerHTML =
+      `<option value="">— auto (${firstBrokName}) —</option>` +
+      broks.map(b => `<option value="${b.id}">${b.name} (Brokerage)</option>`).join('') +
+      accts.map(a => `<option value="${a.id}">${a.name} (${a.type.toUpperCase()})</option>`).join('');
+    select.value = selectedId || '';
+  }
+
   openPropertyModal(id) {
     const prop = this._state.get('properties').find(p => p.id === id);
     const modal = document.getElementById('modal-overlay-property');
@@ -524,6 +537,7 @@ class UIManager {
       this._setField('prop-appreciation', prop.appreciationRate || 3.5);
       this._setField('prop-cost-basis', prop.costBasis || 0);
       this._setField('prop-sale-year', prop.plannedSaleYear || '');
+      this._populateSaleDestination(prop.saleDestinationId);
     }
     modal.classList.add('open');
   }
@@ -539,6 +553,7 @@ class UIManager {
     this._setField('prop-appreciation', 3.5);
     this._setField('prop-cost-basis', 0);
     this._setField('prop-sale-year', '');
+    this._populateSaleDestination(null);
     modal.classList.add('open');
   }
 
@@ -554,6 +569,7 @@ class UIManager {
       costBasis: +this._getField('prop-cost-basis'),
       plannedSaleYear: this._getField('prop-sale-year') ? +this._getField('prop-sale-year') : null,
       currency: this._getField('prop-country') === 'AUS' ? 'AUD' : 'USD',
+      saleDestinationId: this._getField('prop-sale-destination') || null,
     };
     if (id) this._state.updateProperty(id, data);
     else    this._state.addProperty(data);
