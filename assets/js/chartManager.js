@@ -452,6 +452,102 @@ class ChartManager {
     });
   }
 
+  // ══════════════════════════════════════════════════════════════════════════
+  // Account Balances Over Time — one line per account/brokerage/property
+  // ══════════════════════════════════════════════════════════════════════════
+  renderAccountBalances(years, accounts, brokerageAccounts, properties) {
+    const canvas = document.getElementById('chart-account-balances');
+    if (!canvas) return;
+
+    const labels  = years.map(y => y.year);
+    const palette = [
+      '#4a6fa5', '#3d9e72', '#c9a84c', '#c0455a',
+      '#3a8fa0', '#e4845a', '#9b6bb5', '#5a9e6b',
+      '#6b91cc', '#e4c76b',
+    ];
+    let ci = 0;
+    const color = () => palette[ci++ % palette.length];
+
+    const datasets = [];
+
+    accounts.forEach(acc => {
+      const c = color();
+      const flag = acc.country === 'AUS' ? '🇦🇺 ' : '';
+      datasets.push({
+        label: `${flag}${acc.name}`,
+        data: years.map(y => (y.assetBalances || {})[acc.id] || 0),
+        borderColor: c,
+        backgroundColor: 'transparent',
+        borderWidth: 2,
+        pointRadius: 0,
+        tension: 0.3,
+      });
+    });
+
+    brokerageAccounts.forEach(b => {
+      const c = color();
+      const flag = b.country === 'AUS' ? '🇦🇺 ' : '';
+      datasets.push({
+        label: `${flag}${b.name} (Brokerage)`,
+        data: years.map(y => (y.assetBalances || {})[b.id] || 0),
+        borderColor: c,
+        backgroundColor: 'transparent',
+        borderWidth: 2,
+        borderDash: [6, 3],
+        pointRadius: 0,
+        tension: 0.3,
+      });
+    });
+
+    properties.forEach(p => {
+      const c = color();
+      const flag = p.country === 'AUS' ? '🇦🇺 ' : '';
+      datasets.push({
+        label: `${flag}${p.name} (Equity)`,
+        data: years.map(y => (y.assetBalances || {})[p.id] || 0),
+        borderColor: c,
+        backgroundColor: 'transparent',
+        borderWidth: 2,
+        borderDash: [2, 3],
+        pointRadius: 0,
+        tension: 0.3,
+      });
+    });
+
+    const baseOpts = this._baseOptions();
+    this._make('chart-account-balances', {
+      type: 'line',
+      data: { labels, datasets },
+      options: {
+        ...baseOpts,
+        plugins: {
+          ...baseOpts.plugins,
+          legend: {
+            display: true,
+            position: 'bottom',
+            labels: { boxWidth: 12, padding: 14, color: '#8a94b0', font: { size: 11 } },
+          },
+          tooltip: {
+            ...baseOpts.plugins.tooltip,
+            callbacks: {
+              title: items => `Year ${items[0].label}`,
+              label: ctx => {
+                const symbol = appState.getCurrencySymbol();
+                const val = appState.toDisplayCurrency(ctx.raw);
+                return ` ${ctx.dataset.label}: ${symbol}${this._fmt(val)}`;
+              },
+              footer: items => {
+                const total = items.reduce((s, i) => s + i.raw, 0);
+                const symbol = appState.getCurrencySymbol();
+                return `Total: ${symbol}${this._fmt(appState.toDisplayCurrency(total))}`;
+              }
+            }
+          }
+        },
+      }
+    });
+  }
+
   // ── Refresh all charts with new data ─────────────────────────────────────
   updateAll(years) {
     if (!years || years.length === 0) return;
@@ -460,6 +556,12 @@ class ChartManager {
     this.renderIncomeSources(years);
     this.renderTaxBurden(years);
     this.renderDrawdown(years, appState.get('accounts'));
+    this.renderAccountBalances(
+      years,
+      appState.get('accounts'),
+      appState.get('brokerageAccounts'),
+      appState.get('properties')
+    );
   }
 
   destroyAll() {

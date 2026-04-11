@@ -649,6 +649,7 @@ body {
   transition: transform 0.2s;
 }
 .modal-overlay.open .modal { transform: translateY(0); }
+.modal.modal-wide { width: 680px; }
 .modal-header {
   padding: 20px 24px 16px;
   border-bottom: 1px solid var(--border);
@@ -771,6 +772,20 @@ body {
 .proj-table tr.milestone td:first-child { color: var(--accent-gold); }
 .proj-table .pos { color: var(--accent-green-light); }
 .proj-table .neg { color: var(--accent-red-light); }
+
+/* ── Projection table drilldown ── */
+.cell-drilldown {
+  cursor: pointer;
+  text-decoration: underline dotted;
+  text-underline-offset: 3px;
+}
+.cell-drilldown:hover { color: var(--accent-blue-light) !important; }
+.cf-table td:nth-child(2), .cf-table td:nth-child(3) { text-align: right; }
+.cf-table td:nth-child(4) { text-align: left; font-family: 'IBM Plex Sans', sans-serif; font-size: 0.72rem; }
+.cf-note { color: var(--text-muted); font-size: 0.7rem; }
+.cf-total-row td { font-weight: 700; border-top: 1px solid var(--border); color: var(--text-primary) !important; }
+.cf-amount { font-family: 'IBM Plex Mono', monospace; }
+.cf-pct { color: var(--text-muted); font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; }
 
 /* ── Legend ── */
 .chart-legend {

@@ -339,6 +339,17 @@
           </button>
         </div>
 
+        <!-- Account Balances Chart -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Account Balances Over Time</div>
+            <div class="card-subtitle">Projected balance for each account — solid: retirement, dashed: brokerage, dotted: property equity</div>
+          </div>
+          <div class="chart-container" style="height:320px">
+            <canvas id="chart-account-balances"></canvas>
+          </div>
+        </div>
+
       </div>
 
       <!-- ══ PROJECTIONS PANEL ══ -->
@@ -508,6 +519,17 @@
 </div><!-- /#app -->
 
 <!-- ══════════════════ MODALS ══════════════════ -->
+
+<!-- Cash Flow Drill-Down Modal -->
+<div class="modal-overlay" id="modal-overlay-cashflow">
+  <div class="modal modal-wide">
+    <div class="modal-header">
+      <span class="modal-title" id="cashflow-modal-title">Breakdown</span>
+      <button class="modal-close">✕</button>
+    </div>
+    <div class="modal-body" id="cashflow-modal-body"></div>
+  </div>
+</div>
 
 <!-- Account Modal -->
 <div class="modal-overlay" id="modal-overlay-account">

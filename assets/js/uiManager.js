@@ -27,6 +27,7 @@ class UIManager {
   constructor(state) {
     this._state = state;
     this._toastTimeout = null;
+    this._projectionByYear = {};
   }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -236,6 +237,10 @@ class UIManager {
     const s = this._state;
     const symbol = s.getCurrencySymbol();
 
+    // Store for drill-down
+    this._projectionByYear = {};
+    years.forEach(yd => { this._projectionByYear[yd.year] = yd; });
+
     const fmt = (v, colored = false) => {
       const d = s.toDisplayCurrency(v);
       const abs = Math.abs(d);
@@ -266,8 +271,8 @@ class UIManager {
 
       tr.innerHTML = `
         <td>${yd.year} ${countryPill}${milestone}</td>
-        <td>${fmt(yd.totalIncome)}</td>
-        <td>${fmt(yd.totalOutflows)}</td>
+        <td class="cell-drilldown" data-year="${yd.year}" data-type="income" title="Click for breakdown">${fmt(yd.totalIncome)}</td>
+        <td class="cell-drilldown" data-year="${yd.year}" data-type="outflow" title="Click for breakdown">${fmt(yd.totalOutflows)}</td>
         <td>${fmt(yd.netCashFlow, true)}</td>
         <td>${fmt(yd.usTax)}</td>
         <td>${fmt(yd.auTax)}</td>
@@ -275,6 +280,72 @@ class UIManager {
       `;
       tbody.appendChild(tr);
     });
+
+    // Attach click handlers
+    tbody.querySelectorAll('.cell-drilldown').forEach(cell => {
+      cell.addEventListener('click', () => {
+        const yd = this._projectionByYear[+cell.dataset.year];
+        if (yd) this.openCashFlowModal(yd, cell.dataset.type);
+      });
+    });
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // Cash Flow Drill-Down Modal
+  // ══════════════════════════════════════════════════════════════════════════
+  openCashFlowModal(yd, type) {
+    const modal = document.getElementById('modal-overlay-cashflow');
+    if (!modal) return;
+    const s = this._state;
+    const symbol = s.getCurrencySymbol();
+
+    const fmt = v => {
+      const d = s.toDisplayCurrency(v);
+      const abs = Math.abs(d);
+      if (abs >= 1_000_000) return symbol + (d / 1_000_000).toFixed(2) + 'M';
+      if (abs >= 1_000)     return symbol + (d / 1_000).toFixed(1) + 'K';
+      return symbol + d.toFixed(0);
+    };
+
+    const isIncome = type === 'income';
+    const items    = isIncome ? (yd.incomeDetail || []) : (yd.outflowDetail || []);
+    const total    = isIncome ? yd.totalIncome : yd.totalOutflows;
+    const title    = isIncome
+      ? `${yd.year} Income Breakdown`
+      : `${yd.year} Outflow Breakdown`;
+
+    document.getElementById('cashflow-modal-title').textContent = title;
+
+    const rows = items.map(item => {
+      const pct = total > 0 ? ((item.amount / total) * 100).toFixed(1) : '0.0';
+      const note = item.gainWithdrawn > 0
+        ? `<span class="cf-note">${fmt(item.gainWithdrawn)} capital gain</span>`
+        : item.cgt > 0
+          ? `<span class="cf-note">CGT ${fmt(item.cgt)} on ${fmt(item.grossValue)} sale</span>`
+          : '';
+      return `<tr>
+        <td>${item.label}</td>
+        <td class="cf-amount">${fmt(item.amount)}</td>
+        <td class="cf-pct">${pct}%</td>
+        <td>${note}</td>
+      </tr>`;
+    }).join('');
+
+    const totalRow = `<tr class="cf-total-row">
+      <td>Total</td>
+      <td class="cf-amount">${fmt(total)}</td>
+      <td class="cf-pct">100%</td>
+      <td></td>
+    </tr>`;
+
+    document.getElementById('cashflow-modal-body').innerHTML = `
+      <table class="proj-table cf-table">
+        <thead><tr><th>Source</th><th>Amount</th><th>%</th><th>Notes</th></tr></thead>
+        <tbody>${rows}${totalRow}</tbody>
+      </table>
+    `;
+
+    modal.classList.add('open');
   }
 
   // ══════════════════════════════════════════════════════════════════════════
