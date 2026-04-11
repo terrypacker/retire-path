@@ -5,31 +5,56 @@
 **RetirePath** is a vanilla JavaScript SPA for US-Australia cross-border retirement planning. No build step, no package manager, no framework — just static files served directly to the browser.
 
 - **Live deployment**: GitHub Pages
-- **Local dev**: `python3 -m http.server 8000` or `npx http-server`
-- **External deps**: Chart.js 4.4.1 (CDN), Google Fonts (CDN)
+- **Local dev**: `python3 -m http.server 8000` or `npx serve .` — **ES6 modules require an HTTP server; opening `index.html` directly via `file://` will not work.**
+- **External deps**: Chart.js 4.4.1 (CDN), chartjs-plugin-annotation (CDN), Google Fonts (CDN)
 
 ---
 
 ## Architecture
 
-Five modules wired together in `app.js`:
+The codebase uses **native ES6 modules** (`import`/`export`) with no build tooling. `app.js` is the single entry point loaded by `index.html` as `<script type="module">`. CDN libraries (Chart.js, annotation plugin) are loaded as plain `<script>` tags before the module so they are available on `window`.
+
+### Module map
+
+```
+assets/js/
+  app.js                  ← Entry point. Wires all modules, runs projection loop.
+  appState.js             ← Singleton state store (pub/sub, localStorage)
+  projectionEngine.js     ← Deterministic year-by-year retirement simulation
+  chartManager.js         ← Chart.js wrapper for all charts
+  uiManager.js            ← Input binding, KPI display, table rendering, modals
+  debugLogger.js          ← Development logging utility
+  tax/
+    BaseTaxModule.js      ← Abstract base class for country tax modules
+    USTaxModule.js        ← US federal income tax, LTCG, FICA, Social Security
+    AustraliaTaxModule.js ← Australian income tax, Medicare Levy, CGT, Super
+    TaxEngine.js          ← Registry + singleton (export const taxEngine)
+  ui/
+    formatters.js         ← fmtShort(), makeFmt() — pure number formatting
+    modalHelpers.js       ← setField(), getField(), closeModal() — pure DOM
+    toastManager.js       ← showToast() — stateless notification helper
+```
+
+### Core modules
 
 | File | Role |
 |------|------|
-| `assets/js/appState.js` | Singleton state store with pub/sub and localStorage persistence |
-| `assets/js/projectionEngine.js` | Deterministic year-by-year retirement simulation |
-| `assets/js/taxEngine.js` | Pluggable tax modules (US + Australia) |
-| `assets/js/uiManager.js` | Input binding, rendering, modals, KPI display |
-| `assets/js/chartManager.js` | Chart.js wrapper for all charts |
-| `assets/js/app.js` | Bootstrap: wires modules, schedules projections on state change |
+| `appState.js` | Singleton `appState`. Pub/sub state store with localStorage persistence. All state mutations go through its methods. |
+| `projectionEngine.js` | Deterministic year-by-year simulation. Receives `appState` and `taxEngine` via constructor. |
+| `tax/TaxEngine.js` | Singleton `taxEngine`. Registry that dispatches to `USTaxModule` and `AustraliaTaxModule`. |
+| `uiManager.js` | Receives `appState` via constructor. Binds inputs, renders projection table, manages modals. Imports helpers from `ui/`. |
+| `chartManager.js` | Imports `appState` singleton. Owns all Chart.js instances. |
+| `app.js` | Module entry point. Imports all modules, constructs `chartManager`, instantiates `UIManager`, subscribes to state changes. |
 
-**Data flow:**
+### Data flow
+
 ```
-User Input → UIManager → AppState.set → Observer notifies App
-                                                ↓
-                                    ProjectionEngine.run()
-                                                ↓
-                              ChartManager.updateAll() + UIManager.updateKPIs()
+User Input → UIManager → appState.set() → observer notifies App
+                                                  ↓ (300ms debounce)
+                                      ProjectionEngine.run()
+                                                  ↓
+                                ChartManager.updateAll() + UIManager.updateKPIs()
+                                        + UIManager.renderProjectionTable()
 ```
 
 State changes are debounced 300ms before triggering a projection run.
@@ -38,8 +63,9 @@ State changes are debounced 300ms before triggering a projection run.
 
 ## Code Conventions
 
-**JavaScript (ES6+):**
-- ES6 classes with singleton pattern for `AppState` and `TaxEngine`
+**JavaScript (ES6 modules):**
+- Native `import`/`export` — no CommonJS, no bundler
+- ES6 classes; singleton pattern for `appState` (exported from `appState.js`) and `taxEngine` (exported from `tax/TaxEngine.js`)
 - `camelCase` for methods and properties
 - `UPPER_SNAKE_CASE` for constants (tax brackets, rates)
 - `_underscore` prefix for private/internal methods and properties
@@ -81,7 +107,7 @@ State changes are debounced 300ms before triggering a projection run.
 ## Key Patterns
 
 **Adding a new tax jurisdiction:**
-Extend `BaseTaxModule` in `taxEngine.js` and implement `calcIncomeTax`, `calcCapitalGainsTax`, `getBrackets`, and `accountTreatment`.
+Create a new file in `assets/js/tax/` that extends `BaseTaxModule` and implements `calcIncomeTax`, `calcCapitalGainsTax`, `getBrackets`, and `accountTreatment`. Import it in `tax/TaxEngine.js` and call `this.register(new YourModule())` in the constructor.
 
 **Adding a new account type:**
 1. Add to `AppState` default state and helper CRUD methods
@@ -102,6 +128,7 @@ The entire calculation pipeline is synchronous. No Promises, no async/await in t
 - **No build tooling** — do not introduce webpack, Vite, Rollup, or similar. Keep it deployable as static files.
 - **No frameworks** — do not introduce React, Vue, etc.
 - **No npm/package.json** — all dependencies remain CDN-loaded.
+- **HTTP server required for local dev** — ES6 modules are blocked by browsers on `file://` origins.
 - **No automated tests exist** — manual browser testing is the current practice.
 - **Deterministic only** — the projection engine is intentionally deterministic (no Monte Carlo). Do not add stochastic modeling without discussion.
 - **Tax figures are year-specific** — US brackets are 2024 MFJ; Australian brackets are FY2024-25. Note the tax year when updating rates.
@@ -127,6 +154,7 @@ Do not attempt to fix these silently — they are acknowledged limitations, not 
 Embedded help pages live in `assets/help/`:
 - `inputs.htm` — field-by-field input guide
 - `methodology.htm` — projection algorithm explanation
-- `tax-guide.htm` — tax treatment reference
+- `tax-guide.htm` — US-AU tax treatment reference
+- `projections.htm` — projections tab reference
 
-Update these when changing calculation behavior.
+Update these when changing calculation behavior or adding new fields.
