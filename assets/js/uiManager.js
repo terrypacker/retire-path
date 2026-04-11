@@ -72,6 +72,7 @@ class UIManager {
       this._bindInput(`p${idx+1}-life-exp`,        v => { people[idx].lifeExpectancy = +v;   s.set('people', [...people]); }, person.lifeExpectancy);
       this._bindInput(`p${idx+1}-ss-age`,          v => { people[idx].socialSecurityAge = +v; s.set('people', [...people]); }, person.socialSecurityAge);
       this._bindInput(`p${idx+1}-ss-monthly`,      v => { people[idx].socialSecurityMonthly = +v; s.set('people', [...people]); }, person.socialSecurityMonthly);
+      this._bindInput(`p${idx+1}-annual-income`,   v => { people[idx].annualIncome = +v;     s.set('people', [...people]); }, person.annualIncome);
     });
   }
 
@@ -83,7 +84,6 @@ class UIManager {
     this._bindInput('annual-expenses',       v => s.set('currentAnnualExpenses', +v),  s.get('currentAnnualExpenses'));
     this._bindInput('retirement-ratio',      v => s.set('retirementExpenseRatio', +v / 100), s.get('retirementExpenseRatio') * 100);
     this._bindInput('target-end-balance',    v => s.set('targetEndBalance', +v),       s.get('targetEndBalance'));
-    this._bindInput('combined-income',       v => s.set('combinedAnnualIncome', +v),   s.get('combinedAnnualIncome'));
   }
 
   // ── Move slider ───────────────────────────────────────────────────────────

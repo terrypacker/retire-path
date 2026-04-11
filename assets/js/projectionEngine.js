@@ -115,13 +115,21 @@ class ProjectionEngine {
     });
 
     // ── Income ───────────────────────────────────────────────────────────────
-    // Employment income (pre-retirement)
+    // Per-person income tracking (for AU individual tax assessment)
+    const personIncome = {};
+    people.forEach(p => { personIncome[p.id] = { employment: 0, ss: 0, withdrawals: 0 }; });
+
+    // Employment income (pre-retirement) — sum each working person's individual income
     let employmentIncome = 0;
     if (!allRetired) {
-      const workingPeople = people.filter((p, i) => !retiredFlags[i] && year <= p.birthYear + p.lifeExpectancy);
-      employmentIncome = workingPeople.length > 0
-        ? s.combinedAnnualIncome * (workingPeople.length / people.length) * Math.pow(1 + inflUS, yearsSinceStart)
-        : 0;
+      const inflFactor = Math.pow(1 + inflUS, yearsSinceStart);
+      people.forEach((p, i) => {
+        if (!retiredFlags[i] && year <= p.birthYear + p.lifeExpectancy) {
+          const personEmployment = (p.annualIncome || 0) * inflFactor;
+          employmentIncome += personEmployment;
+          personIncome[p.id].employment = personEmployment;
+        }
+      });
     }
 
     // Social Security
@@ -130,6 +138,7 @@ class ProjectionEngine {
       if (year <= p.birthYear + p.lifeExpectancy) {
         const ssAmount = this._taxes.get('US').calcSocialSecurity(p, year);
         socialSecurityTotal += ssAmount;
+        personIncome[p.id].ss = ssAmount;
       }
     });
 
@@ -180,6 +189,9 @@ class ProjectionEngine {
         bal -= withdrawal;
         withdrawalGapRemaining -= withdrawal;
         totalAccountWithdrawals += withdrawal;
+        if (acc.ownerId && personIncome[acc.ownerId] !== undefined) {
+          personIncome[acc.ownerId].withdrawals += withdrawal;
+        }
       }
 
       nextAccBalances[acc.id] = Math.max(0, bal);
@@ -275,20 +287,28 @@ class ProjectionEngine {
       estimatedTax += usResult.tax;
     }
 
-    // Post-move: AU income tax on retirement account withdrawals + AU CGT on brokerage gains.
+    // Post-move: AU income tax assessed per person (Australia taxes individuals separately).
+    // Each person's AU taxable income = their employment income + their account withdrawals.
+    // (US Social Security has treaty/FITO treatment; kept out of AU base for simplicity.)
     // FITO (Foreign Income Tax Offset): AU liability reduced by US tax already paid, simplified 1:1.
-    // Note: AU module expects AUD; amounts here are USD. The FITO offset partially corrects for
-    // this. Full fix: multiply totalAccountWithdrawals by s.fxRate before AU calcIncomeTax call.
+    // Note: AU module expects AUD; amounts here are USD. The FITO offset partially corrects for this.
     if (isPostMove) {
       const auMod = this._taxes.get('AUS');
-      const auIncomeResult = totalAccountWithdrawals > 0
-        ? auMod.calcIncomeTax(totalAccountWithdrawals, { year, isResident: true, taxBaseYear })
-        : { tax: 0 };
-      // Apportion the US tax already estimated against the withdrawal income fraction
-      const usTaxOnWithdrawals = totalIncome > 0
-        ? estimatedTax * (totalAccountWithdrawals / totalIncome)
+      let auIncomeTaxTotal = 0;
+      people.forEach(p => {
+        if (year > p.birthYear + p.lifeExpectancy) return;
+        const pIncome = personIncome[p.id];
+        const personAUIncome = pIncome.employment + pIncome.withdrawals;
+        if (personAUIncome > 0) {
+          auIncomeTaxTotal += auMod.calcIncomeTax(personAUIncome, { year, isResident: true, taxBaseYear }).tax;
+        }
+      });
+      // Apportion the US tax already estimated against the AU-taxable income fraction
+      const auTaxableTotal = employmentIncome + totalAccountWithdrawals;
+      const usTaxOnAUIncome = totalIncome > 0
+        ? estimatedTax * (auTaxableTotal / totalIncome)
         : 0;
-      const auNetIncomeTax = Math.max(0, auIncomeResult.tax - usTaxOnWithdrawals);
+      const auNetIncomeTax = Math.max(0, auIncomeTaxTotal - usTaxOnAUIncome);
       estimatedTax += auNetIncomeTax + brokerageAUCGTTotal;
     }
 

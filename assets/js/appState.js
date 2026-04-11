@@ -48,6 +48,7 @@ class AppState {
           socialSecurityAge: 67,
           socialSecurityMonthly: 2800,   // USD/month at full retirement age
           isCitizen: 'us',              // 'us' | 'aus' | 'both'
+          annualIncome: 120000,         // USD gross, pre-retirement
         },
         {
           id: 'person2',
@@ -58,6 +59,7 @@ class AppState {
           socialSecurityAge: 67,
           socialSecurityMonthly: 1800,
           isCitizen: 'us',
+          annualIncome: 100000,         // USD gross, pre-retirement
         }
       ],
 
@@ -166,10 +168,7 @@ class AppState {
       retirementExpenseRatio: 0.80,   // 80% of pre-retirement
       targetEndBalance: 50000,        // buffer to die with
 
-      // ── Income (pre-retirement) ────────────────────────────
-      combinedAnnualIncome: 220000,   // USD gross
-
-      // ── Projection cache ──────────────────────────────────
+// ── Projection cache ──────────────────────────────────
       projectionYears: [],            // populated by ProjectionEngine
     };
   }
@@ -282,6 +281,13 @@ class AppState {
         const parsed = JSON.parse(saved);
         // Merge with defaults to handle new fields added after save
         this._state = Object.assign(this._defaultState(), parsed);
+        // Migration: if old state had combinedAnnualIncome but people lack annualIncome,
+        // split it evenly across people
+        const combined = parsed.combinedAnnualIncome;
+        if (combined && this._state.people) {
+          const perPerson = Math.round(combined / this._state.people.length);
+          this._state.people.forEach(p => { if (!p.annualIncome) p.annualIncome = perPerson; });
+        }
         this.notify([]);
         return true;
       }
