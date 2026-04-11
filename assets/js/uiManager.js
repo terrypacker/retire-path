@@ -375,22 +375,22 @@ class UIManager {
     const account = this._state.get('accounts').find(a => a.id === id);
     if (!account) return this.openNewAccountModal();
 
-    const modal = document.getElementById('modal-account');
+    const modal = document.getElementById('modal-overlay-account');
     if (!modal) return;
 
     document.getElementById('modal-account-title').textContent = 'Edit Account';
     this._fillAccountForm(account);
     document.getElementById('modal-account-id').value = id;
-    modal.closest('.modal-overlay').classList.add('open');
+    modal.classList.add('open');
   }
 
   openNewAccountModal() {
-    const modal = document.getElementById('modal-account');
+    const modal = document.getElementById('modal-overlay-account');
     if (!modal) return;
     document.getElementById('modal-account-title').textContent = 'Add Account';
     document.getElementById('modal-account-id').value = '';
     this._fillAccountForm({ name: '', type: '401k', country: 'US', balance: 0, currency: 'USD', annualContribution: 0, employerMatch: 0, growthRate: 7, withdrawalStartAge: 59.5, ownerId: 'person1' });
-    modal.closest('.modal-overlay').classList.add('open');
+    modal.classList.add('open');
   }
 
   _fillAccountForm(acc) {
