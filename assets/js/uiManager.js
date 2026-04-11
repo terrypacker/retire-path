@@ -389,7 +389,7 @@ class UIManager {
     if (!modal) return;
     document.getElementById('modal-account-title').textContent = 'Add Account';
     document.getElementById('modal-account-id').value = '';
-    this._fillAccountForm({ name: '', type: '401k', country: 'US', balance: 0, currency: 'USD', annualContribution: 0, employerMatch: 0, growthRate: 7, withdrawalStartAge: 59.5, ownerId: 'person1' });
+    this._fillAccountForm({ name: '', type: '401k', country: 'US', balance: 0, currency: 'USD', annualContribution: 0, employerMatch: 0, growthRate: 7, withdrawalStartAge: 59.5, ownerId: 'person1', moveValueBasis: null });
     modal.classList.add('open');
   }
 
@@ -404,6 +404,7 @@ class UIManager {
     this._setField('acc-growth', acc.growthRate || 7);
     this._setField('acc-withdraw-age', acc.withdrawalStartAge || 59.5);
     this._setField('acc-owner', acc.ownerId || 'person1');
+    this._setField('acc-move-basis', acc.moveValueBasis != null ? acc.moveValueBasis : '');
   }
 
   saveAccountModal() {
@@ -419,6 +420,7 @@ class UIManager {
       growthRate: +this._getField('acc-growth'),
       withdrawalStartAge: +this._getField('acc-withdraw-age'),
       ownerId: this._getField('acc-owner'),
+      moveValueBasis: this._getField('acc-move-basis') !== '' ? +this._getField('acc-move-basis') : null,
     };
     if (id) this._state.updateAccount(id, data);
     else    this._state.addAccount(data);
@@ -507,6 +509,7 @@ class UIManager {
       this._setField('brok-contribution', b.annualContribution || 0);
       this._setField('brok-growth', b.growthRate || 7);
       this._setField('brok-cost-basis', b.costBasis || 0);
+      this._setField('brok-move-basis', b.moveValueBasis != null ? b.moveValueBasis : '');
     }
     modal.classList.add('open');
   }
@@ -520,6 +523,7 @@ class UIManager {
     this._setField('brok-contribution', 0);
     this._setField('brok-growth', 7);
     this._setField('brok-cost-basis', 0);
+    this._setField('brok-move-basis', '');
     modal.classList.add('open');
   }
 
@@ -533,6 +537,7 @@ class UIManager {
       growthRate: +this._getField('brok-growth'),
       costBasis: +this._getField('brok-cost-basis'),
       currency: this._getField('brok-country') === 'AUS' ? 'AUD' : 'USD',
+      moveValueBasis: this._getField('brok-move-basis') !== '' ? +this._getField('brok-move-basis') : null,
     };
     if (id) this._state.updateBrokerage(id, data);
     else    this._state.addBrokerage(data);

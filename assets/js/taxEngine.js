@@ -385,11 +385,56 @@ class AustraliaTaxModule extends BaseTaxModule {
         return { taxableAmount: amount * this._superWithdrawalTaxUnder60, note: '20% tax + Medicare (under 60)' };
       }
     }
+    // US retirement accounts held post-move — treated as foreign pension income in AU.
+    // Stub: 100% of withdrawal is AU-taxable as foreign income.
+    // Future: apply proportional Article 18 (US-AU Tax Treaty) exemption using context.moveValueBasis
+    // to distinguish pre-move growth (potentially exempt) from post-move growth (taxable).
+    if (accountType === '401k' || accountType === 'ira') {
+      if (eventType === 'contribution') return { taxableAmount: 0, note: 'Pre-tax (no AU event at contribution)' };
+      if (eventType === 'growth')       return { taxableAmount: 0, note: 'Tax-deferred growth (no AU event)' };
+      if (eventType === 'withdrawal') {
+        const note = context.moveValueBasis != null
+          ? '100% taxable as foreign income (Article 18 treaty exemption not yet modelled)'
+          : '100% taxable as foreign income (no move-date basis set)';
+        return { taxableAmount: amount, note };
+      }
+    }
+    if (accountType === 'roth') {
+      if (eventType === 'contribution') return { taxableAmount: 0, note: 'After-tax (no AU event at contribution)' };
+      if (eventType === 'growth')       return { taxableAmount: 0, note: 'Tax-free growth (no AU event)' };
+      if (eventType === 'withdrawal')
+        return { taxableAmount: amount, note: 'Taxable as foreign income in AU (Roth has no AU equivalent)' };
+    }
     // Franking credits on AU dividends — simplified: 30% credit on dividends
     if (accountType === 'brokerage' && eventType === 'withdrawal') {
       return { taxableAmount: amount, note: 'CGT 50% discount may apply', frankingCredit: amount * 0.043 };
     }
     return { taxableAmount: amount, note: '' };
+  }
+
+  /**
+   * Calculate the Australian-taxable capital gain on a brokerage withdrawal,
+   * applying deemed-acquisition rules (s855-45 ITAA 1997 equivalent).
+   *
+   * When a person becomes an Australian tax resident, Australia resets the CGT
+   * cost basis to the FMV on that date (moveValueBasis). Only gains accrued
+   * AFTER becoming resident are subject to Australian CGT.
+   *
+   * @param {number} withdrawal           - Amount being withdrawn
+   * @param {number} preWithdrawalBalance - Account balance just before this withdrawal
+   * @param {number|null} moveValueBasis  - FMV on AU residency date (null = use costBasis)
+   * @param {number} costBasis            - Original US purchase cost basis (fallback)
+   * @returns {{ auTaxableGain: number, auBasis: number, note: string }}
+   */
+  calcBrokerageAUGain(withdrawal, preWithdrawalBalance, moveValueBasis, costBasis) {
+    const auBasis     = (moveValueBasis != null && moveValueBasis > 0) ? moveValueBasis : (costBasis || 0);
+    const totalAUGain = Math.max(0, preWithdrawalBalance - auBasis);
+    const fraction    = preWithdrawalBalance > 0 ? withdrawal / preWithdrawalBalance : 0;
+    const auTaxableGain = totalAUGain * fraction;
+    const note = moveValueBasis != null
+      ? `AU gain above move-date FMV (${auBasis.toFixed(0)})`
+      : `AU gain above original cost basis (no move-date value recorded)`;
+    return { auTaxableGain: Math.max(0, auTaxableGain), auBasis, note };
   }
 
   getBrackets(year = 2024, taxBaseYear = null) {

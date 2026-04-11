@@ -142,6 +142,7 @@ class ProjectionEngine {
     let totalAccountContributions = 0;
     let totalAccountWithdrawals   = 0;
     let withdrawalGapRemaining    = expenseGap;
+    let brokerageAUCGTTotal       = 0;
 
     s.accounts.forEach(acc => {
       let bal = accBalances[acc.id] || 0;
@@ -171,9 +172,10 @@ class ProjectionEngine {
       const canWithdraw = ownerAge >= (acc.withdrawalStartAge || 59.5);
       if (isRetired && canWithdraw && withdrawalGapRemaining > 0 && bal > 0) {
         // Tax treatment
+        const treatCtx  = { age: ownerAge, year, taxBaseYear, moveValueBasis: acc.moveValueBasis || null };
         const treatment = isPostMove
-          ? this._taxes.get('AUS').accountTreatment(acc.type, 'withdrawal', withdrawalGapRemaining, { age: ownerAge, year })
-          : this._taxes.get('US').accountTreatment(acc.type, 'withdrawal', withdrawalGapRemaining, { age: ownerAge, year });
+          ? this._taxes.get('AUS').accountTreatment(acc.type, 'withdrawal', withdrawalGapRemaining, treatCtx)
+          : this._taxes.get('US').accountTreatment(acc.type, 'withdrawal', withdrawalGapRemaining, treatCtx);
         const withdrawal = Math.min(bal, withdrawalGapRemaining);
         bal -= withdrawal;
         withdrawalGapRemaining -= withdrawal;
@@ -231,13 +233,30 @@ class ProjectionEngine {
 
       // Drawdown from brokerage if still a gap
       if (allRetired && withdrawalGapRemaining > 0 && balance > 0) {
-        const withdrawal  = Math.min(balance, withdrawalGapRemaining);
-        const gainFraction = balance > 0 ? (balance - costBasis) / balance : 0;
-        const gainWithdrawn = withdrawal * Math.max(0, gainFraction);
+        const preWithdrawalBalance   = balance;
+        const preWithdrawalCostBasis = costBasis;
+        const withdrawal    = Math.min(balance, withdrawalGapRemaining);
+        const gainFraction  = preWithdrawalBalance > 0 ? (preWithdrawalBalance - preWithdrawalCostBasis) / preWithdrawalBalance : 0;
+        const gainWithdrawn = withdrawal * Math.max(0, gainFraction);  // eslint-disable-line no-unused-vars
         costBasis -= withdrawal * (1 - Math.max(0, gainFraction));
-        balance -= withdrawal;
+        balance   -= withdrawal;
         withdrawalGapRemaining -= withdrawal;
         totalAccountWithdrawals += withdrawal;
+
+        // Post-move: AU CGT on gains accrued after becoming Australian resident
+        if (isPostMove) {
+          const auMod = this._taxes.get('AUS');
+          const { auTaxableGain } = auMod.calcBrokerageAUGain(
+            withdrawal, preWithdrawalBalance, brok.moveValueBasis || null, preWithdrawalCostBasis
+          );
+          if (auTaxableGain > 0) {
+            brokerageAUCGTTotal += auMod.calcCapitalGainsTax(
+              auTaxableGain,
+              employmentIncome + socialSecurityTotal,
+              { year, holdingPeriodDays: 400, isResident: true, taxBaseYear }
+            ).tax;
+          }
+        }
       }
 
       totalBrokerageValue += balance;
@@ -246,18 +265,31 @@ class ProjectionEngine {
 
     // ── Tax estimate ──────────────────────────────────────────────────────────
     const totalIncome = employmentIncome + socialSecurityTotal + totalAccountWithdrawals + propertySaleIncome;
-    const taxModules  = this._taxes.resolveApplicableModules(year, moveYear, moveEnabled);
     let estimatedTax  = 0;
 
-    const primaryTax = taxModules[0];
-    if (primaryTax && totalIncome > 0) {
-      const result = primaryTax.calcIncomeTax(totalIncome, {
-        year,
-        filingStatus: 'mfj',
-        isRetired: allRetired,
-        taxBaseYear,
+    // US tax always applies — US citizens are taxed on worldwide income
+    if (totalIncome > 0) {
+      const usResult = this._taxes.get('US').calcIncomeTax(totalIncome, {
+        year, filingStatus: 'mfj', isRetired: allRetired, taxBaseYear,
       });
-      estimatedTax = result.tax;
+      estimatedTax += usResult.tax;
+    }
+
+    // Post-move: AU income tax on retirement account withdrawals + AU CGT on brokerage gains.
+    // FITO (Foreign Income Tax Offset): AU liability reduced by US tax already paid, simplified 1:1.
+    // Note: AU module expects AUD; amounts here are USD. The FITO offset partially corrects for
+    // this. Full fix: multiply totalAccountWithdrawals by s.fxRate before AU calcIncomeTax call.
+    if (isPostMove) {
+      const auMod = this._taxes.get('AUS');
+      const auIncomeResult = totalAccountWithdrawals > 0
+        ? auMod.calcIncomeTax(totalAccountWithdrawals, { year, isResident: true, taxBaseYear })
+        : { tax: 0 };
+      // Apportion the US tax already estimated against the withdrawal income fraction
+      const usTaxOnWithdrawals = totalIncome > 0
+        ? estimatedTax * (totalAccountWithdrawals / totalIncome)
+        : 0;
+      const auNetIncomeTax = Math.max(0, auIncomeResult.tax - usTaxOnWithdrawals);
+      estimatedTax += auNetIncomeTax + brokerageAUCGTTotal;
     }
 
     // ── Net worth ─────────────────────────────────────────────────────────────

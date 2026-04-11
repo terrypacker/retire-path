@@ -83,6 +83,7 @@ class AppState {
           growthRate: 7.0,
           ownerId: 'person1',
           withdrawalStartAge: 59.5,
+          moveValueBasis: null,
         },
         {
           id: 'acc2',
@@ -96,6 +97,7 @@ class AppState {
           growthRate: 7.0,
           ownerId: 'person1',
           withdrawalStartAge: 59.5,
+          moveValueBasis: null,
         },
         {
           id: 'acc3',
@@ -109,6 +111,7 @@ class AppState {
           growthRate: 7.0,
           ownerId: 'person2',
           withdrawalStartAge: 59.5,
+          moveValueBasis: null,
         },
         {
           id: 'acc4',
@@ -122,6 +125,7 @@ class AppState {
           growthRate: 7.0,
           ownerId: 'person1',
           withdrawalStartAge: 60,
+          moveValueBasis: null,
         },
       ],
 
@@ -153,6 +157,7 @@ class AppState {
           annualContribution: 12000,
           growthRate: 7.0,
           costBasis: 38000,
+          moveValueBasis: null,
         }
       ],
 
