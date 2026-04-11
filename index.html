@@ -1,0 +1,728 @@
+<!DOCTYPE html>
+<!--
+-- Copyright (c) 2026 Terry Packer.
+--
+-- This file is part of Terry Packer's Work.
+-- See www.terrypacker.com for further info.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+-->
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RetirePath — US-Australia Retirement Planner</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;600;700&family=IBM+Plex+Sans:wght@300;400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="assets/css/main.css">
+</head>
+<body>
+<div id="app">
+
+  <!-- ══════════════════ HEADER ══════════════════ -->
+  <header class="app-header">
+    <div class="app-logo">RetirePath<span>.</span></div>
+
+    <nav class="header-nav">
+      <button class="nav-tab active" data-panel="dashboard">Dashboard</button>
+      <button class="nav-tab" data-panel="accounts">Accounts</button>
+      <button class="nav-tab" data-panel="projections">Projections</button>
+      <button class="nav-tab" data-panel="tax">Tax Analysis</button>
+      <button class="nav-tab" data-panel="help">Help</button>
+    </nav>
+
+    <div class="header-actions">
+      <div class="currency-toggle">
+        <button data-currency="USD" class="active">USD</button>
+        <button data-currency="AUD">AUD</button>
+      </div>
+      <span class="fx-rate-display" id="fx-rate-display">1 USD = 1.5800 AUD</span>
+      <button class="btn-icon" id="btn-save" title="Save plan">💾</button>
+      <button class="btn-icon" id="btn-load" title="Load plan">📂</button>
+    </div>
+  </header>
+
+  <!-- ══════════════════ BODY ══════════════════ -->
+  <div class="app-body">
+
+    <!-- ── SIDEBAR ───────────────────────────────── -->
+    <aside class="sidebar">
+
+      <!-- People -->
+      <div class="sidebar-section">
+        <div class="sidebar-section-title">👤 Person 1</div>
+        <div class="form-group">
+          <label class="form-label">Name</label>
+          <input type="text" id="p1-name" class="form-input" value="Person 1">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Birth Year</label>
+            <input type="number" id="p1-birth-year" class="form-input mono" min="1940" max="1990" value="1975">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Retire Age</label>
+            <input type="number" id="p1-retire-age" class="form-input mono" min="50" max="80" value="65">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Life Expectancy</label>
+          <div class="slider-wrap">
+            <div class="slider-row">
+              <input type="range" class="form-range" id="p1-life-exp" min="70" max="105" value="90"
+                oninput="document.getElementById('p1-life-exp-val').textContent=this.value">
+              <span class="slider-value" id="p1-life-exp-val">90</span>
+            </div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">SS Age</label>
+            <input type="number" id="p1-ss-age" class="form-input mono" min="62" max="70" value="67">
+          </div>
+          <div class="form-group">
+            <label class="form-label">SS / Month</label>
+            <div class="input-prefix-wrap">
+              <span class="input-prefix">$</span>
+              <input type="number" id="p1-ss-monthly" class="form-input mono" value="2800">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="sidebar-section">
+        <div class="sidebar-section-title">👤 Person 2</div>
+        <div class="form-group">
+          <label class="form-label">Name</label>
+          <input type="text" id="p2-name" class="form-input" value="Person 2">
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Birth Year</label>
+            <input type="number" id="p2-birth-year" class="form-input mono" min="1940" max="1990" value="1977">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Retire Age</label>
+            <input type="number" id="p2-retire-age" class="form-input mono" min="50" max="80" value="65">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Life Expectancy</label>
+          <div class="slider-wrap">
+            <div class="slider-row">
+              <input type="range" class="form-range" id="p2-life-exp" min="70" max="105" value="92"
+                oninput="document.getElementById('p2-life-exp-val').textContent=this.value">
+              <span class="slider-value" id="p2-life-exp-val">92</span>
+            </div>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">SS Age</label>
+            <input type="number" id="p2-ss-age" class="form-input mono" min="62" max="70" value="67">
+          </div>
+          <div class="form-group">
+            <label class="form-label">SS / Month</label>
+            <div class="input-prefix-wrap">
+              <span class="input-prefix">$</span>
+              <input type="number" id="p2-ss-monthly" class="form-input mono" value="1800">
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Expenses & Income -->
+      <div class="sidebar-section">
+        <div class="sidebar-section-title">💰 Income & Expenses</div>
+        <div class="form-group">
+          <label class="form-label">Combined Income / yr</label>
+          <div class="input-prefix-wrap">
+            <span class="input-prefix">$</span>
+            <input type="number" id="combined-income" class="form-input mono" value="220000" step="5000">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Annual Expenses / yr</label>
+          <div class="input-prefix-wrap">
+            <span class="input-prefix">$</span>
+            <input type="number" id="annual-expenses" class="form-input mono" value="90000" step="1000">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Retirement Expense Ratio</label>
+          <div class="slider-wrap">
+            <div class="slider-row">
+              <input type="range" class="form-range" id="retirement-ratio" min="50" max="120" value="80"
+                oninput="document.getElementById('retirement-ratio-val').textContent=this.value+'%'">
+              <span class="slider-value" id="retirement-ratio-val">80%</span>
+            </div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Target End Balance</label>
+          <div class="input-prefix-wrap">
+            <span class="input-prefix">$</span>
+            <input type="number" id="target-end-balance" class="form-input mono" value="50000" step="10000">
+          </div>
+        </div>
+      </div>
+
+      <!-- Inflation -->
+      <div class="sidebar-section">
+        <div class="sidebar-section-title">📊 Inflation</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label"><span class="flag">🇺🇸</span> US %</label>
+            <input type="number" id="inflation-us" class="form-input mono" value="2.5" step="0.1" min="0" max="15">
+          </div>
+          <div class="form-group">
+            <label class="form-label"><span class="flag">🇦🇺</span> AUS %</label>
+            <input type="number" id="inflation-aus" class="form-input mono" value="3.0" step="0.1" min="0" max="15">
+          </div>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- ── MAIN CONTENT ──────────────────────────── -->
+    <main class="main-content">
+
+      <!-- ══ DASHBOARD PANEL ══ -->
+      <div id="panel-dashboard" class="panel active">
+
+        <!-- Australia Move Slider -->
+        <div class="move-slider-card">
+          <div class="move-slider-header">
+            <div class="move-flags">🇺🇸 → 🇦🇺</div>
+            <div>
+              <div class="move-title">Australia Move Year</div>
+              <div class="move-subtitle">Drag to model different move scenarios</div>
+            </div>
+            <div class="move-year-display" id="move-year-display">2029</div>
+            <label style="display:flex;align-items:center;gap:6px;font-size:0.75rem;color:var(--text-secondary);margin-left:16px;">
+              <input type="checkbox" id="move-enabled-toggle" checked style="accent-color:var(--accent-gold)">
+              Enabled
+            </label>
+          </div>
+          <div class="move-slider-track">
+            <input type="range" class="move-range" id="move-year-slider" min="2025" max="2055" value="2029">
+          </div>
+          <div class="move-labels">
+            <span>🇺🇸 US phase</span>
+            <span>🇦🇺 Australian phase →</span>
+          </div>
+        </div>
+
+        <!-- KPI Bar -->
+        <div class="kpi-bar">
+          <div class="kpi-card blue" id="kpi-retirement-nw">
+            <div class="kpi-label">Net Worth at Retirement</div>
+            <div class="kpi-value">—</div>
+            <div class="kpi-sub">Calculating…</div>
+          </div>
+          <div class="kpi-card gold" id="kpi-peak-nw">
+            <div class="kpi-label">Peak Net Worth</div>
+            <div class="kpi-value">—</div>
+            <div class="kpi-sub">Highest point</div>
+          </div>
+          <div class="kpi-card green" id="kpi-final-nw">
+            <div class="kpi-label">Final Net Worth</div>
+            <div class="kpi-value">—</div>
+            <div class="kpi-sub">End of plan</div>
+          </div>
+          <div class="kpi-card" id="kpi-retirement-years" style="--accent:var(--accent-teal)">
+            <style>#kpi-retirement-years::before { background: var(--accent-teal); }</style>
+            <div class="kpi-label">Retirement Duration</div>
+            <div class="kpi-value">—</div>
+            <div class="kpi-sub">Years in retirement</div>
+          </div>
+        </div>
+
+        <!-- Net Worth Chart -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Net Worth Over Time</div>
+            <div class="card-subtitle">Accounts + Property Equity + Brokerage</div>
+          </div>
+          <div class="chart-container" style="height:280px">
+            <canvas id="chart-networth"></canvas>
+          </div>
+          <div class="chart-legend">
+            <div class="legend-item"><div class="legend-dot" style="background:#4a6fa5"></div>Retirement Accounts</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#3a8fa0"></div>Brokerage</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#c9a84c"></div>Property Equity</div>
+          </div>
+        </div>
+
+        <!-- Income vs Expenses -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Income vs Outflows</div>
+            <div class="card-subtitle">Annual cash flow — bars show amounts, line shows net</div>
+          </div>
+          <div class="chart-container" style="height:240px">
+            <canvas id="chart-income-expenses"></canvas>
+          </div>
+          <div class="chart-legend">
+            <div class="legend-item"><div class="legend-dot" style="background:#3d9e72"></div>Total Income</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#c0455a"></div>Total Outflows</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#e4c76b"></div>Net Cash Flow</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ══ ACCOUNTS PANEL ══ -->
+      <div id="panel-accounts" class="panel">
+
+        <!-- Retirement Accounts -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Retirement Accounts</div>
+            <div class="card-subtitle">401(k), IRA, Roth, Super</div>
+          </div>
+          <div id="account-list" class="account-list"></div>
+          <button class="btn-add" onclick="uiManager.openNewAccountModal()">
+            ＋ Add Retirement Account
+          </button>
+        </div>
+
+        <!-- Properties -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Properties</div>
+            <div class="card-subtitle">Real estate and mortgage details</div>
+          </div>
+          <div id="property-list" class="account-list"></div>
+          <button class="btn-add" onclick="uiManager.openNewPropertyModal()">
+            ＋ Add Property
+          </button>
+        </div>
+
+        <!-- Brokerage -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Brokerage Accounts</div>
+            <div class="card-subtitle">Taxable investment accounts</div>
+          </div>
+          <div id="brokerage-list" class="account-list"></div>
+          <button class="btn-add" onclick="uiManager.openNewBrokerageModal()">
+            ＋ Add Brokerage Account
+          </button>
+        </div>
+
+      </div>
+
+      <!-- ══ PROJECTIONS PANEL ══ -->
+      <div id="panel-projections" class="panel">
+
+        <!-- Income Sources Chart -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Income Sources Over Time</div>
+            <div class="card-subtitle">How income composition shifts through retirement</div>
+          </div>
+          <div class="chart-container" style="height:280px">
+            <canvas id="chart-income-sources"></canvas>
+          </div>
+          <div class="chart-legend">
+            <div class="legend-item"><div class="legend-dot" style="background:#4a6fa5"></div>Employment</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#3d9e72"></div>Social Security</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#c0455a"></div>Account Withdrawals</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#c9a84c"></div>Property Sales</div>
+          </div>
+        </div>
+
+        <!-- Drawdown Chart -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Retirement Drawdown</div>
+            <div class="card-subtitle">Net worth and liquid assets during retirement phase</div>
+          </div>
+          <div class="chart-container" style="height:240px">
+            <canvas id="chart-drawdown"></canvas>
+          </div>
+          <div class="chart-legend">
+            <div class="legend-item"><div class="legend-dot" style="background:#4a6fa5"></div>Net Worth</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#c9a84c;opacity:0.7;border:1px dashed #c9a84c"></div>Liquid Assets</div>
+          </div>
+        </div>
+
+        <!-- Projection Table -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Year-by-Year Projection</div>
+            <div class="card-subtitle">Detailed annual breakdown</div>
+          </div>
+          <div style="overflow-x:auto;margin-top:4px;">
+            <table class="proj-table">
+              <thead>
+                <tr>
+                  <th>Year</th>
+                  <th>Income</th>
+                  <th>Outflows</th>
+                  <th>Net Flow</th>
+                  <th>Est. Tax</th>
+                  <th>Net Worth</th>
+                </tr>
+              </thead>
+              <tbody id="projection-tbody">
+                <tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:20px;">Running projection…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- ══ TAX ANALYSIS PANEL ══ -->
+      <div id="panel-tax" class="panel">
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Estimated Tax Burden</div>
+            <div class="card-subtitle">Annual tax and effective rate over time</div>
+          </div>
+          <div class="chart-container" style="height:260px">
+            <canvas id="chart-tax"></canvas>
+          </div>
+          <div class="chart-legend">
+            <div class="legend-item"><div class="legend-dot" style="background:#c0455a"></div>Tax Amount</div>
+            <div class="legend-item"><div class="legend-dot" style="background:#e4c76b"></div>Effective Rate %</div>
+          </div>
+        </div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">🇺🇸 US Tax Brackets</div>
+              <div class="card-subtitle">MFJ — current year (inflated)</div>
+            </div>
+            <div id="us-tax-brackets"></div>
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">🇦🇺 AU Tax Brackets</div>
+              <div class="card-subtitle">Individual rates — current FY</div>
+            </div>
+            <div id="aus-tax-brackets"></div>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Account Tax Treatment Summary</div>
+          </div>
+          <table class="proj-table">
+            <thead>
+              <tr>
+                <th>Account Type</th>
+                <th>Contributions</th>
+                <th>Growth</th>
+                <th>Withdrawals</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>🇺🇸 401(k) / IRA</td>
+                <td>Pre-tax</td>
+                <td>Deferred</td>
+                <td>Ordinary income</td>
+              </tr>
+              <tr>
+                <td>🇺🇸 Roth IRA</td>
+                <td>After-tax</td>
+                <td>Tax-free</td>
+                <td>Tax-free (59½+)</td>
+              </tr>
+              <tr>
+                <td>🇺🇸 Brokerage</td>
+                <td>After-tax</td>
+                <td>Annual dividends taxed</td>
+                <td>LTCG rates on gains</td>
+              </tr>
+              <tr>
+                <td>🇦🇺 Super (accumulation)</td>
+                <td>15% in-fund</td>
+                <td>15% earnings tax</td>
+                <td>Tax-free (age 60+)</td>
+              </tr>
+              <tr class="milestone">
+                <td>🇦🇺 Super (US citizen)</td>
+                <td colspan="3">⚠️ IRS may treat as foreign trust — seek specialist advice</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+
+      <!-- ══ HELP PANEL ══ -->
+      <div id="panel-help" class="panel">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Help &amp; Documentation</div>
+          </div>
+          <div class="inner-tabs">
+            <button class="inner-tab active" onclick="showHelp('inputs',this)">Input Fields</button>
+            <button class="inner-tab" onclick="showHelp('methodology',this)">Methodology</button>
+            <button class="inner-tab" onclick="showHelp('tax-guide',this)">US-AU Tax Guide</button>
+          </div>
+          <iframe id="help-frame" class="help-iframe" src="assets/help/inputs.htm"></iframe>
+        </div>
+      </div>
+
+    </main>
+  </div><!-- /.app-body -->
+</div><!-- /#app -->
+
+<!-- ══════════════════ MODALS ══════════════════ -->
+
+<!-- Account Modal -->
+<div class="modal-overlay" id="modal-overlay-account">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-account-title">Account</span>
+      <button class="modal-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="modal-account-id">
+      <div class="form-group">
+        <label class="form-label">Account Name</label>
+        <input type="text" id="acc-name" class="form-input" placeholder="e.g. 401(k) — Fidelity">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Type</label>
+          <select id="acc-type" class="form-select">
+            <option value="401k">401(k)</option>
+            <option value="ira">Traditional IRA</option>
+            <option value="roth">Roth IRA</option>
+            <option value="super">Australian Super</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Country</label>
+          <select id="acc-country" class="form-select">
+            <option value="US">🇺🇸 United States</option>
+            <option value="AUS">🇦🇺 Australia</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Currency</label>
+          <select id="acc-currency" class="form-select">
+            <option value="USD">USD</option>
+            <option value="AUD">AUD</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Owner</label>
+          <select id="acc-owner" class="form-select">
+            <option value="person1">Person 1</option>
+            <option value="person2">Person 2</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Current Balance</label>
+        <div class="input-prefix-wrap">
+          <span class="input-prefix">$</span>
+          <input type="number" id="acc-balance" class="form-input mono" value="0" step="1000">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Annual Contribution</label>
+          <div class="input-prefix-wrap">
+            <span class="input-prefix">$</span>
+            <input type="number" id="acc-contribution" class="form-input mono" value="0" step="500">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Employer Match</label>
+          <div class="input-prefix-wrap">
+            <span class="input-prefix">$</span>
+            <input type="number" id="acc-match" class="form-input mono" value="0" step="500">
+          </div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Growth Rate %</label>
+          <input type="number" id="acc-growth" class="form-input mono" value="7" step="0.5" min="0" max="20">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Withdraw From Age</label>
+          <input type="number" id="acc-withdraw-age" class="form-input mono" value="59.5" step="0.5">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" data-close-modal>Cancel</button>
+      <button class="btn btn-primary" onclick="uiManager.saveAccountModal()">Save Account</button>
+    </div>
+  </div>
+</div>
+
+<!-- Property Modal -->
+<div class="modal-overlay" id="modal-overlay-property">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Property</span>
+      <button class="modal-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="prop-id">
+      <div class="form-group">
+        <label class="form-label">Property Name</label>
+        <input type="text" id="prop-name" class="form-input" placeholder="e.g. Primary Residence">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Country</label>
+        <select id="prop-country" class="form-select">
+          <option value="US">🇺🇸 United States</option>
+          <option value="AUS">🇦🇺 Australia</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Current Value</label>
+          <div class="input-prefix-wrap">
+            <span class="input-prefix">$</span>
+            <input type="number" id="prop-value" class="form-input mono" value="0" step="5000">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Mortgage Balance</label>
+          <div class="input-prefix-wrap">
+            <span class="input-prefix">$</span>
+            <input type="number" id="prop-mortgage" class="form-input mono" value="0" step="1000">
+          </div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Monthly Mortgage</label>
+          <div class="input-prefix-wrap">
+            <span class="input-prefix">$</span>
+            <input type="number" id="prop-monthly-mortgage" class="form-input mono" value="0" step="100">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Appreciation %</label>
+          <input type="number" id="prop-appreciation" class="form-input mono" value="3.5" step="0.1">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Cost Basis</label>
+          <div class="input-prefix-wrap">
+            <span class="input-prefix">$</span>
+            <input type="number" id="prop-cost-basis" class="form-input mono" value="0" step="5000">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Planned Sale Year</label>
+          <input type="number" id="prop-sale-year" class="form-input mono" placeholder="optional">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" data-close-modal>Cancel</button>
+      <button class="btn btn-primary" onclick="uiManager.savePropertyModal()">Save Property</button>
+    </div>
+  </div>
+</div>
+
+<!-- Brokerage Modal -->
+<div class="modal-overlay" id="modal-overlay-brokerage">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Brokerage Account</span>
+      <button class="modal-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="brok-id">
+      <div class="form-group">
+        <label class="form-label">Account Name</label>
+        <input type="text" id="brok-name" class="form-input" placeholder="e.g. US Brokerage">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Country</label>
+        <select id="brok-country" class="form-select">
+          <option value="US">🇺🇸 United States</option>
+          <option value="AUS">🇦🇺 Australia</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Current Balance</label>
+          <div class="input-prefix-wrap">
+            <span class="input-prefix">$</span>
+            <input type="number" id="brok-balance" class="form-input mono" value="0" step="1000">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Cost Basis</label>
+          <div class="input-prefix-wrap">
+            <span class="input-prefix">$</span>
+            <input type="number" id="brok-cost-basis" class="form-input mono" value="0" step="1000">
+          </div>
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Annual Contribution</label>
+          <div class="input-prefix-wrap">
+            <span class="input-prefix">$</span>
+            <input type="number" id="brok-contribution" class="form-input mono" value="0" step="500">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Growth Rate %</label>
+          <input type="number" id="brok-growth" class="form-input mono" value="7" step="0.5">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" data-close-modal>Cancel</button>
+      <button class="btn btn-primary" onclick="uiManager.saveBrokerageModal()">Save Account</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div class="toast-container" id="toast-container"></div>
+
+<!-- ══════════════════ SCRIPTS ══════════════════ -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="assets/js/appState.js"></script>
+<script src="assets/js/taxEngine.js"></script>
+<script src="assets/js/projectionEngine.js"></script>
+<script src="assets/js/chartManager.js"></script>
+<script src="assets/js/uiManager.js"></script>
+<script src="assets/js/app.js"></script>
+
+<script>
+  // Help iframe switcher
+  function showHelp(page, btn) {
+    document.querySelectorAll('.inner-tab').forEach(t => t.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    document.getElementById('help-frame').src = `assets/help/${page}.htm`;
+  }
+</script>
+
+</body>
+</html>

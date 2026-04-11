@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<!--
+-- Copyright (c) 2026 Terry Packer.
+--
+-- This file is part of Terry Packer's Work.
+-- See www.terrypacker.com for further info.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Help — Methodology</title>
+<style>
+  body { font-family: 'IBM Plex Sans', sans-serif; background: #1c2333; color: #e8ecf4; margin: 0; padding: 24px; font-size: 14px; line-height: 1.7; }
+  h1 { font-family: 'Playfair Display', serif; font-size: 1.4rem; color: #e4c76b; margin-bottom: 4px; }
+  h2 { font-family: 'Playfair Display', serif; font-size: 1rem; color: #6b91cc; margin: 24px 0 8px; border-bottom: 1px solid #2a3148; padding-bottom: 6px; }
+  h3 { color: #c9d4f0; font-size: 0.9rem; margin: 16px 0 6px; }
+  p  { color: #8a94b0; margin: 0 0 12px; }
+  ul { color: #8a94b0; padding-left: 20px; margin: 0 0 12px; }
+  li { margin-bottom: 4px; }
+  .callout { background: rgba(201,168,76,0.08); border-left: 3px solid #c9a84c; padding: 12px 16px; border-radius: 0 6px 6px 0; margin: 16px 0; }
+  .callout p { color: #c9d4f0; margin: 0; }
+  .formula { background: #111520; border: 1px solid #2a3148; border-radius: 6px; padding: 12px 16px; font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; color: #6b91cc; margin: 10px 0; }
+  code { background: #111520; padding: 2px 6px; border-radius: 3px; font-family: 'IBM Plex Mono', monospace; font-size: 0.82rem; color: #c9a84c; }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=IBM+Plex+Sans:wght@300;400;500&family=IBM+Plex+Mono&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<h1>⚙️ Methodology</h1>
+<p>How the retirement planner calculates your projections year by year.</p>
+
+<div class="callout">
+  <p>⚠️ This tool provides <strong>estimates for planning purposes only</strong>. It is not tax advice. Cross-border US-AU taxation is complex — always consult a tax professional qualified in both jurisdictions before making financial decisions.</p>
+</div>
+
+<h2>Projection Model Overview</h2>
+<p>The engine runs a <strong>deterministic, year-by-year simulation</strong> from the current year to the latest life expectancy year across all household members. Each year it:</p>
+<ul>
+  <li>Grows all accounts by their configured growth rate</li>
+  <li>Adds contributions (while working)</li>
+  <li>Inflates expenses using the applicable country rate</li>
+  <li>Calculates income from all sources</li>
+  <li>Draws from accounts to cover any income gap</li>
+  <li>Estimates taxes under applicable jurisdictions</li>
+  <li>Records net worth and cash flow</li>
+</ul>
+
+<h2>Account Growth</h2>
+<div class="formula">balance_next = balance × (1 + growthRate)</div>
+<p>Growth is applied at the start of each year before contributions or withdrawals. This is a simplified nominal return — it does not model sequence-of-returns risk, volatility, or inflation-adjusted returns separately.</p>
+
+<h2>Expense Inflation</h2>
+<div class="formula">expenses_year = baseExpenses × retirementRatio × (1 + inflationRate)^yearsElapsed</div>
+<p>While you live in the US, US CPI applies. After the move year, Australian CPI applies to living costs. The base expenses are your current annual spending in USD.</p>
+
+<h2>Income Sources</h2>
+<h3>Employment Income</h3>
+<p>Grows with US inflation while working. When one spouse retires, income is halved proportionally. Stops entirely when both are retired.</p>
+
+<h3>Social Security</h3>
+<p>Starts at each person's configured claiming age. Benefits grow at 2.3% annually (historical COLA average). Up to 85% of benefits may be taxable depending on combined income.</p>
+
+<h3>Account Withdrawals</h3>
+<p>When income + Social Security falls short of expenses, the engine draws from retirement accounts in order:</p>
+<ol style="color:#8a94b0; padding-left:20px;">
+  <li>401(k) / Traditional IRA (oldest, typically)</li>
+  <li>Roth IRA (last, to maximize tax-free growth)</li>
+  <li>Australian Super (after move and age 60)</li>
+  <li>Brokerage accounts</li>
+</ol>
+<p>Early withdrawal penalties apply if withdrawing before age 59.5 (US accounts).</p>
+
+<h2>Tax Modeling</h2>
+
+<h3>US Federal Income Tax</h3>
+<p>Applied using the 2024 Married Filing Jointly brackets, inflated at 2.5% annually for future years. Includes a simplified FICA component on employment income. The standard deduction is also inflated annually.</p>
+
+<h3>US Capital Gains Tax</h3>
+<ul>
+  <li>Short-term gains (&lt;365 days): taxed as ordinary income</li>
+  <li>Long-term gains (365+ days): 0%, 15%, or 20% based on income</li>
+  <li>Net Investment Income Tax (NIIT): 3.8% on investment income above $250K (MFJ)</li>
+</ul>
+
+<h3>Australian Income Tax (post-move)</h3>
+<p>Australian marginal rates (2024-25) are applied to income arising in Australia. US citizens must also file US taxes on worldwide income — the model applies US tax as primary and assumes Foreign Tax Credit offsets to avoid double taxation (simplified).</p>
+
+<h3>Australian Capital Gains Tax</h3>
+<ul>
+  <li>Assets held &gt;12 months: 50% CGT discount for residents (taxable gain = 50% of nominal gain)</li>
+  <li>Gain is stacked on top of ordinary income and taxed at marginal rate</li>
+  <li>Non-residents do not get the 50% discount</li>
+</ul>
+
+<h3>Australian Superannuation Tax</h3>
+<ul>
+  <li>Contributions tax: 15% within the fund</li>
+  <li>Earnings tax in accumulation phase: 15%</li>
+  <li>Withdrawals after age 60: tax-free (if meeting condition of release)</li>
+  <li>Withdrawals before age 60: taxed at marginal rate less a 15% offset</li>
+</ul>
+
+<div class="callout">
+  <p>🚨 <strong>US citizens and Super:</strong> The IRS treats Australian Super as a foreign grantor trust, meaning US income tax may apply to Super earnings annually. This is a major planning consideration. The model currently does not fully reflect this complexity — consult a specialist.</p>
+</div>
+
+<h2>Net Worth Calculation</h2>
+<div class="formula">netWorth = Σ(accountBalances) + Σ(propertyEquity) + Σ(brokerageBalances)</div>
+<p>Property equity = current value minus outstanding mortgage. All values are in USD; use the AUD toggle to convert at the configured FX rate.</p>
+
+<h2>The Australia Move Event</h2>
+<p>When the move year is reached:</p>
+<ul>
+  <li>Australian CPI replaces US CPI for expense inflation</li>
+  <li>Australian tax module becomes co-active alongside US filing</li>
+  <li>Australian Super becomes accessible (if age 60+ is met)</li>
+  <li>Capital gains on US assets held pre-move use a "deemed disposal" concept (simplified)</li>
+</ul>
+
+<h2>What This Model Does NOT Include</h2>
+<ul>
+  <li>Sequence-of-returns risk / Monte Carlo simulation</li>
+  <li>Required Minimum Distributions (RMDs)</li>
+  <li>State income taxes</li>
+  <li>Totalization Agreement nuances (US-AU Social Security treaty)</li>
+  <li>Transfer Balance Cap limits on Australian Super pension phase</li>
+  <li>Foreign Asset Reporting (FBAR, FATCA)</li>
+  <li>Estate taxes / inheritance considerations</li>
+  <li>Medicare / private health insurance costs</li>
+</ul>
+<p>These are areas where professional advice is particularly important.</p>
+
+</body>
+</html>

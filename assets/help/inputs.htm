@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<!--
+-- Copyright (c) 2026 Terry Packer.
+--
+-- This file is part of Terry Packer's Work.
+-- See www.terrypacker.com for further info.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Help — Inputs</title>
+<style>
+  body {
+    font-family: 'IBM Plex Sans', sans-serif;
+    background: #1c2333;
+    color: #e8ecf4;
+    margin: 0;
+    padding: 24px;
+    font-size: 14px;
+    line-height: 1.7;
+  }
+  h1 { font-family: 'Playfair Display', serif; font-size: 1.4rem; color: #e4c76b; margin-bottom: 4px; }
+  h2 { font-family: 'Playfair Display', serif; font-size: 1rem; color: #6b91cc; margin: 24px 0 8px; border-bottom: 1px solid #2a3148; padding-bottom: 6px; }
+  p  { color: #8a94b0; margin: 0 0 12px; }
+  .field { background: #111520; border: 1px solid #2a3148; border-radius: 6px; padding: 12px 16px; margin-bottom: 10px; }
+  .field-name { font-weight: 600; color: #e8ecf4; font-size: 0.9rem; margin-bottom: 4px; }
+  .field-desc { color: #8a94b0; font-size: 0.82rem; }
+  .tag { display: inline-block; font-size: 0.65rem; padding: 2px 7px; border-radius: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; margin-right: 6px; }
+  .tag-us  { background: rgba(74,111,165,0.2); color: #6b91cc; }
+  .tag-aus { background: rgba(201,168,76,0.2);  color: #e4c76b; }
+  .tag-both{ background: rgba(61,158,114,0.2);  color: #52c490; }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<h1>📋 Input Fields Guide</h1>
+<p>This page explains every input in the retirement planner and how it affects your projections.</p>
+
+<h2>👥 People</h2>
+
+<div class="field">
+  <div class="field-name">Birth Year</div>
+  <div class="field-desc">Used to calculate your current age and the exact year each life-stage event occurs (retirement, Social Security eligibility, life expectancy endpoint).</div>
+</div>
+
+<div class="field">
+  <div class="field-name">Retirement Age</div>
+  <div class="field-desc">The age at which you plan to stop working. Employment income stops, and the model begins drawing from retirement accounts to cover the expense gap. Each person can retire independently.</div>
+</div>
+
+<div class="field">
+  <div class="field-name">Life Expectancy</div>
+  <div class="field-desc">How far the projection runs. We recommend planning conservatively — 90–95 is a common target. The model tracks "dying with zero" against your target end balance.</div>
+</div>
+
+<div class="field">
+  <div class="field-name">Social Security Age <span class="tag tag-us">US</span></div>
+  <div class="field-desc">Age at which you claim Social Security. Full Retirement Age (FRA) is typically 67 for those born after 1960. Claiming at 62 reduces benefits ~30%; delaying to 70 increases by ~24%.</div>
+</div>
+
+<div class="field">
+  <div class="field-name">Social Security Monthly Benefit <span class="tag tag-us">US</span></div>
+  <div class="field-desc">Your estimated benefit at your chosen claiming age, in today's dollars. You can find this on your SSA.gov statement. The model inflates this at 2.3% annually (COLA assumption).</div>
+</div>
+
+<h2>🏦 Retirement Accounts</h2>
+
+<div class="field">
+  <div class="field-name">401(k) / Traditional IRA <span class="tag tag-us">US</span></div>
+  <div class="field-desc">Pre-tax contributions reduce taxable income today. Growth is tax-deferred. Withdrawals are taxed as ordinary income. Required Minimum Distributions (RMDs) begin at age 73 (not yet modeled — coming soon).</div>
+</div>
+
+<div class="field">
+  <div class="field-name">Roth IRA <span class="tag tag-us">US</span></div>
+  <div class="field-desc">After-tax contributions. Growth and qualified withdrawals (age 59½+) are completely tax-free. No RMDs during your lifetime. An excellent vehicle post-move as Australia generally respects the Roth's tax-free status.</div>
+</div>
+
+<div class="field">
+  <div class="field-name">Australian Superannuation <span class="tag tag-aus">AUS</span></div>
+  <div class="field-desc">Australia's equivalent of a 401(k). Employer must contribute 11% of salary (Superannuation Guarantee). Contributions taxed at 15% in-fund. Tax-free withdrawals after age 60 (once you meet a condition of release). As a US citizen, your Super is a foreign grantor trust for US tax purposes — consult a tax advisor familiar with US-AU dual-filing.</div>
+</div>
+
+<div class="field">
+  <div class="field-name">Annual Contribution</div>
+  <div class="field-desc">How much you personally contribute each year. Contributions stop when you retire. The model enforces no contribution limits warnings — ensure yours comply with annual IRS/ATO caps.</div>
+</div>
+
+<div class="field">
+  <div class="field-name">Employer Match</div>
+  <div class="field-desc">Annual employer contributions. For Australian Super this is the Superannuation Guarantee (11%+ of salary). Stops at retirement.</div>
+</div>
+
+<div class="field">
+  <div class="field-name">Expected Growth Rate %</div>
+  <div class="field-desc">Nominal annual return assumption (before inflation). Historical US equity markets have returned ~10% nominal, ~7% real. A common planning rate is 6–7% for a balanced portfolio. This is applied gross — consider your actual allocation.</div>
+</div>
+
+<h2>🏠 Properties</h2>
+
+<div class="field">
+  <div class="field-name">Current Value</div>
+  <div class="field-desc">Current estimated market value of the property.</div>
+</div>
+
+<div class="field">
+  <div class="field-name">Mortgage Balance</div>
+  <div class="field-desc">Outstanding principal. Monthly payments reduce this (the model uses a simplified principal reduction — enter actual payoff date via Planned Sale Year for accuracy).</div>
+</div>
+
+<div class="field">
+  <div class="field-name">Appreciation Rate %</div>
+  <div class="field-desc">Expected annual property appreciation. US residential long-run average is ~3–4%. Australian capital cities have historically averaged 6–7% but with higher volatility.</div>
+</div>
+
+<div class="field">
+  <div class="field-name">Cost Basis <span class="tag tag-us">US</span></div>
+  <div class="field-desc">Your original purchase price plus capital improvements. Used to calculate taxable capital gain on sale. Primary residence exclusion of $500K (MFJ) applies if lived in 2 of last 5 years.</div>
+</div>
+
+<div class="field">
+  <div class="field-name">Planned Sale Year</div>
+  <div class="field-desc">If you plan to sell the property, enter the year. The model will calculate after-tax proceeds and remove it from the balance sheet. Leave blank to hold indefinitely.</div>
+</div>
+
+<h2>📈 Brokerage Accounts</h2>
+
+<div class="field">
+  <div class="field-name">Balance & Cost Basis</div>
+  <div class="field-desc">Current account value and what you originally paid (cost basis). The difference is your unrealized gain, which becomes taxable when you sell.</div>
+</div>
+
+<div class="field">
+  <div class="field-name">Annual Contribution</div>
+  <div class="field-desc">Additional after-tax money you add each year while working. No legal limits (unlike retirement accounts).</div>
+</div>
+
+<h2>💰 Expenses & Income</h2>
+
+<div class="field">
+  <div class="field-name">Current Annual Expenses</div>
+  <div class="field-desc">Your household's total annual spending today in USD. This becomes the baseline for retirement expense projections.</div>
+</div>
+
+<div class="field">
+  <div class="field-name">Retirement Expense Ratio %</div>
+  <div class="field-desc">What percentage of pre-retirement spending you expect in retirement. Common planning assumption is 70–85%. Mortgage payoff and commuting costs reduce it; healthcare often increases it.</div>
+</div>
+
+<div class="field">
+  <div class="field-name">Target End Balance</div>
+  <div class="field-desc">The "die with zero" buffer. Set to $0 for true zero-based planning. Setting $50K–$200K provides a buffer for unexpected late-life expenses and estate intentions.</div>
+</div>
+
+<div class="field">
+  <div class="field-name">Combined Annual Income</div>
+  <div class="field-desc">Gross household income today. Used to project pre-retirement tax burden and savings rate. Split proportionally when one person retires before the other.</div>
+</div>
+
+<h2>🌏 Australia Move</h2>
+
+<div class="field">
+  <div class="field-name">Move Year Slider</div>
+  <div class="field-desc">Drag to set the year you relocate to Australia. This is a key scenario variable — the model switches tax regimes and inflation rates at this point. Try different years to see the impact.</div>
+</div>
+
+<div class="field">
+  <div class="field-name">Inflation Rates (US & AUS)</div>
+  <div class="field-desc">Separate rates for each country. US CPI has averaged ~2.5% long-run. Australian CPI has averaged ~2.5–3%. After the move, Australian inflation applies to living costs. The model uses the active country's rate to inflate expenses.</div>
+</div>
+
+</body>
+</html>
