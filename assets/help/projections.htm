@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<!--
+-- Copyright (c) 2026 Terry Packer.
+--
+-- This file is part of Terry Packer's Work.
+-- See www.terrypacker.com for further info.
+--
+-- Licensed under the Apache License, Version 2.0 (the "License");
+-- you may not use this file except in compliance with the License.
+-- You may obtain a copy of the License at
+--
+--     http://www.apache.org/licenses/LICENSE-2.0
+--
+-- Unless required by applicable law or agreed to in writing, software
+-- distributed under the License is distributed on an "AS IS" BASIS,
+-- WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+-- See the License for the specific language governing permissions and
+-- limitations under the License.
+-->
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Help — Projections</title>
+<style>
+  body { font-family: 'IBM Plex Sans', sans-serif; background: #1c2333; color: #e8ecf4; margin: 0; padding: 24px; font-size: 14px; line-height: 1.7; }
+  h1 { font-family: 'Playfair Display', serif; font-size: 1.4rem; color: #e4c76b; margin-bottom: 4px; }
+  h2 { font-family: 'Playfair Display', serif; font-size: 1rem; color: #6b91cc; margin: 24px 0 8px; border-bottom: 1px solid #2a3148; padding-bottom: 6px; }
+  h3 { color: #c9d4f0; font-size: 0.9rem; margin: 16px 0 6px; }
+  p  { color: #8a94b0; margin: 0 0 12px; }
+  ul { color: #8a94b0; padding-left: 20px; margin: 0 0 12px; }
+  li { margin-bottom: 4px; }
+  .callout { background: rgba(201,168,76,0.08); border-left: 3px solid #c9a84c; padding: 12px 16px; border-radius: 0 6px 6px 0; margin: 16px 0; }
+  .callout.info { background: rgba(74,111,165,0.08); border-left-color: #4a6fa5; }
+  .callout p { color: #c9d4f0; margin: 0; }
+  .formula { background: #111520; border: 1px solid #2a3148; border-radius: 6px; padding: 12px 16px; font-family: 'IBM Plex Mono', monospace; font-size: 0.8rem; color: #6b91cc; margin: 10px 0; }
+  code { background: #111520; padding: 2px 6px; border-radius: 3px; font-family: 'IBM Plex Mono', monospace; font-size: 0.82rem; color: #c9a84c; }
+  .legend-swatch { display: inline-block; width: 28px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+  .legend-solid { background: #4a6fa5; }
+  .legend-dashed { background: transparent; border-top: 2px dashed #c9a84c; }
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=IBM+Plex+Sans:wght@300;400;500&family=IBM+Plex+Mono&display=swap" rel="stylesheet">
+</head>
+<body>
+
+<h1>📊 Projections</h1>
+<p>How to read the three visualizations on the Projections tab.</p>
+
+<p>The engine runs a <strong>deterministic, year-by-year simulation</strong> from the current year through the latest life expectancy year for all household members. The Projections tab presents the results in three views:</p>
+<ul>
+  <li><strong>Income Sources Over Time</strong> — stacked area chart covering all years</li>
+  <li><strong>Retirement Drawdown</strong> — line chart covering retirement years only</li>
+  <li><strong>Year-by-Year Projection</strong> — detailed table of every year's numbers</li>
+</ul>
+
+<h2>Retirement Drawdown Chart</h2>
+<p>This chart isolates the <strong>retirement phase only</strong> — the years after both household members have retired. It shows how your wealth evolves as you draw from savings to cover living expenses. Two lines are plotted:</p>
+
+<h3><span class="legend-swatch legend-solid"></span>Net Worth (solid blue)</h3>
+<p>Your <em>total</em> household wealth across all asset classes:</p>
+<div class="formula">Net Worth = Σ(retirement account balances) + Σ(property equity) + Σ(brokerage balances)</div>
+<ul>
+  <li><strong>Retirement accounts</strong> — 401(k), Traditional IRA, Roth IRA, Australian Super. Grown annually at the configured growth rate; drawn down when income falls short of expenses.</li>
+  <li><strong>Property equity</strong> — market value of each property minus its outstanding mortgage balance. Appreciates annually at the configured rate; mortgage principal declines through regular payments.</li>
+  <li><strong>Brokerage accounts</strong> — taxable investment accounts. Grown annually; drawn after retirement accounts when an income gap still exists.</li>
+</ul>
+
+<h3><span class="legend-swatch legend-dashed"></span>Liquid Assets (dashed gold)</h3>
+<p>The portion of your wealth that is <em>spendable without selling a property</em>:</p>
+<div class="formula">Liquid Assets = Σ(retirement account balances) + Σ(brokerage balances)</div>
+<p>Property equity is intentionally excluded. A home or investment property cannot be partially spent — converting that equity to cash requires selling the property, paying off the mortgage, and incurring transaction costs. Until a property is sold, its equity is real wealth but not accessible cash flow.</p>
+
+<h3>Why the gap between the two lines matters</h3>
+<p>The vertical distance between Net Worth and Liquid Assets at any point in time equals your total property equity. This gap is a planning signal:</p>
+<ul>
+  <li>A <strong>large, persistent gap</strong> means a significant portion of your retirement wealth is locked in real estate. Your spendable runway is shorter than your net worth suggests.</li>
+  <li><strong>Liquid Assets approaching zero</strong> while Net Worth remains positive is a warning: the plan is technically solvent only because of property — without selling, you may run out of spendable funds.</li>
+  <li>If a property sale is planned (set a sale year in the Inputs tab), the equity converts to brokerage cash in that year and both lines will converge.</li>
+</ul>
+
+<div class="callout">
+  <p>⚠️ <strong>Watch the Liquid Assets line, not just Net Worth.</strong> A plan that keeps Net Worth positive through life expectancy but has Liquid Assets hit zero decades earlier is not a viable drawdown plan — it depends on liquidating your home to survive.</p>
+</div>
+
+<div class="callout info">
+  <p>💡 <strong>Tip:</strong> If you see a sharp jump upward in Liquid Assets mid-retirement, check whether a property sale year is configured. The sale proceeds flow into brokerage accounts and are immediately reflected in the Liquid Assets line.</p>
+</div>
+
+<h2>Income Sources Over Time</h2>
+<p>A stacked area chart showing all income streams from the current year through end-of-life. Each colored band represents one source (employment, Social Security, account withdrawals, etc.). The total height of all bands equals gross income in that year. This chart covers both the working and retirement phases, so you can see how income composition shifts at retirement.</p>
+
+<h2>Year-by-Year Projection Table</h2>
+<p>A detailed row-per-year breakdown showing income, expenses, taxes owed to each country, account balances, and net worth. Use this table to inspect any specific year flagged by the charts. Columns include:</p>
+<ul>
+  <li>Income by source and by person</li>
+  <li>Total expenses (inflation-adjusted)</li>
+  <li>US and Australian tax separately</li>
+  <li>Account balances at year-end</li>
+  <li>Net Worth and Liquid Assets</li>
+</ul>
+
+</body>
+</html>
