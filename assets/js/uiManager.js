@@ -308,7 +308,7 @@ class UIManager {
         <td>${fmt(yd.netCashFlow, true)}</td>
         <td class="cell-drilldown" data-year="${yd.year}" data-type="tax-us" title="Click for US tax breakdown">${fmt(yd.usTax)}</td>
         <td class="cell-drilldown" data-year="${yd.year}" data-type="tax-au" title="Click for AU tax breakdown">${fmt(yd.auTax)}</td>
-        <td>${fmt(yd.netWorth)}</td>
+        <td class="cell-drilldown" data-year="${yd.year}" data-type="networth" title="Click for net worth breakdown">${fmt(yd.netWorth)}</td>
       `;
       tbody.appendChild(tr);
     });
@@ -321,6 +321,8 @@ class UIManager {
         const type = cell.dataset.type;
         if (type === 'tax-us' || type === 'tax-au') {
           this.openTaxModal(yd, type);
+        } else if (type === 'networth') {
+          this.openNetWorthModal(yd);
         } else {
           this.openCashFlowModal(yd, type);
         }
@@ -455,6 +457,76 @@ class UIManager {
       <table class="proj-table cf-table cf-table-tax">
         <thead><tr><th>Component</th><th>Amount</th><th>Notes</th></tr></thead>
         <tbody>${emptyRow}${chargeRows}${creditSection}${totalRow}</tbody>
+      </table>
+    `;
+
+    modal.classList.add('open');
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // Net Worth Drill-Down Modal
+  // ══════════════════════════════════════════════════════════════════════════
+  openNetWorthModal(yd) {
+    const modal = document.getElementById('modal-overlay-cashflow');
+    if (!modal) return;
+    const s = this._state;
+    const symbol = s.getCurrencySymbol();
+
+    const fmt = v => {
+      const d = s.toDisplayCurrency(v);
+      const abs = Math.abs(d);
+      if (abs >= 1_000_000) return symbol + (d / 1_000_000).toFixed(2) + 'M';
+      if (abs >= 1_000)     return symbol + (d / 1_000).toFixed(1) + 'K';
+      return symbol + d.toFixed(0);
+    };
+
+    document.getElementById('cashflow-modal-title').textContent = `Net Worth — ${yd.year}`;
+
+    const detail = yd.netWorthDetail || [];
+    const total  = yd.netWorth;
+
+    const rows = detail.map(item => {
+      const pct  = total > 0 ? ((item.amount / total) * 100).toFixed(1) : '0.0';
+      const flag = item.country === 'AUS' ? '🇦🇺 ' : item.tag === 'Property' || item.tag === 'Brokerage' ? '' : '🇺🇸 ';
+      const badge = `<span class="nw-tag nw-tag-${item.tag.toLowerCase().replace(/\s+/g, '-')}">${flag}${item.tag}</span>`;
+
+      let note = '';
+      if (item.propValue != null) {
+        const unrealised = item.amount < item.propValue
+          ? `value ${fmt(item.propValue)}, mortgage ${fmt(item.propMortgage)}`
+          : `value ${fmt(item.propValue)}, no mortgage`;
+        note = `<span class="cf-note">${unrealised}</span>`;
+      } else if (item.costBasis != null) {
+        const gain = item.amount - item.costBasis;
+        const gainStr = gain >= 0
+          ? `<span class="pos">+${fmt(gain)}</span>`
+          : `<span class="neg">${fmt(gain)}</span>`;
+        note = `<span class="cf-note">cost basis ${fmt(item.costBasis)}, unrealised gain ${gainStr}</span>`;
+      }
+
+      return `<tr>
+        <td>${item.label} ${badge}</td>
+        <td class="cf-amount">${fmt(item.amount)}</td>
+        <td class="cf-pct">${pct}%</td>
+        <td>${note}</td>
+      </tr>`;
+    }).join('');
+
+    const emptyRow = detail.length === 0
+      ? `<tr><td colspan="4" style="text-align:center;color:#8a94b0;padding:16px;">No assets this year</td></tr>`
+      : '';
+
+    const totalRow = `<tr class="cf-total-row">
+      <td>Total Net Worth</td>
+      <td class="cf-amount">${fmt(total)}</td>
+      <td class="cf-pct">100%</td>
+      <td></td>
+    </tr>`;
+
+    document.getElementById('cashflow-modal-body').innerHTML = `
+      <table class="proj-table cf-table">
+        <thead><tr><th>Asset</th><th>Value</th><th>%</th><th>Notes</th></tr></thead>
+        <tbody>${emptyRow}${rows}${totalRow}</tbody>
       </table>
     `;
 

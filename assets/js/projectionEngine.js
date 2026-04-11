@@ -441,6 +441,38 @@ class ProjectionEngine {
     if (usTax > 0) outflowDetail.push({ label: '🇺🇸 US Tax', amount: usTax });
     if (auTax > 0) outflowDetail.push({ label: '🇦🇺 AU Tax', amount: auTax });
 
+    // ── Net worth detail (for drill-down modal) ───────────────────────────────
+    const netWorthDetail = [];
+    s.accounts.forEach(acc => {
+      const bal = nextAccBalances[acc.id] || 0;
+      if (bal > 0) netWorthDetail.push({
+        label:   acc.name,
+        amount:  bal,
+        tag:     acc.type.toUpperCase(),
+        country: acc.country || 'US',
+      });
+    });
+    s.brokerageAccounts.forEach(b => {
+      const bv = nextBrokValues[b.id] || { balance: 0, costBasis: 0 };
+      if (bv.balance > 0) netWorthDetail.push({
+        label:     b.name,
+        amount:    bv.balance,
+        tag:       'Brokerage',
+        costBasis: bv.costBasis || 0,
+      });
+    });
+    s.properties.forEach(prop => {
+      const pv     = nextPropValues[prop.id] || { value: 0, mortgage: 0 };
+      const equity = Math.max(0, pv.value - pv.mortgage);
+      if (pv.value > 0) netWorthDetail.push({
+        label:        prop.name,
+        amount:       equity,
+        tag:          'Property',
+        propValue:    pv.value,
+        propMortgage: pv.mortgage,
+      });
+    });
+
     // ── Assemble year data ────────────────────────────────────────────────────
     return {
       year,
@@ -482,6 +514,7 @@ class ProjectionEngine {
       outflowDetail,
       usTaxDetail,
       auTaxDetail,
+      netWorthDetail,
 
       // Per-asset balance snapshot (for account balance chart)
       assetBalances,
@@ -519,6 +552,7 @@ class ProjectionEngine {
       outflowDetail: [],
       usTaxDetail: [],
       auTaxDetail: [],
+      netWorthDetail: [],
       assetBalances: {},
       _nextAccountBalances: accBalances,
       _nextPropertyValues:  propValues,

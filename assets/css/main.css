@@ -796,6 +796,13 @@ body {
 .cf-total-row td { font-weight: 700; border-top: 1px solid var(--border); color: var(--text-primary) !important; }
 .cf-amount { font-family: 'IBM Plex Mono', monospace; }
 .cf-pct { color: var(--text-muted); font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; }
+/* Net worth modal asset tags */
+.nw-tag { display: inline-block; font-size: 0.65rem; padding: 1px 6px; border-radius: 3px; font-weight: 500; vertical-align: middle; margin-left: 4px; }
+.nw-tag-401k, .nw-tag-ira, .nw-tag-roth { background: rgba(74,111,165,0.2); color: #6b91cc; }
+.nw-tag-super { background: rgba(228,199,107,0.15); color: #e4c76b; }
+.nw-tag-brokerage { background: rgba(61,158,114,0.15); color: var(--accent-green-light); }
+.nw-tag-property { background: rgba(192,69,90,0.15); color: var(--accent-red-light); }
+
 /* Tax breakdown modal — 3-column variant */
 .cf-table-tax td:nth-child(2) { text-align: right; }
 .cf-table-tax td:nth-child(3) { text-align: left; font-size: 0.72rem; color: var(--text-muted); }
