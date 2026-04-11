@@ -23,7 +23,7 @@
  * All modules read/write through this singleton.
  */
 
-class AppState {
+export class AppState {
   constructor() {
     this._state = this._defaultState();
     this._listeners = [];
@@ -334,5 +334,5 @@ class AppState {
   }
 }
 
-// Singleton
-const appState = new AppState();
+// Singleton — imported by app.js, chartManager.js, and anywhere else that needs state
+export const appState = new AppState();

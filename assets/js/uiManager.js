@@ -23,7 +23,13 @@
  * sidebar inputs, KPI bar, projection table, account modals, toast.
  */
 
-class UIManager {
+import { taxEngine }    from './tax/TaxEngine.js';
+import { DebugLogger }  from './debugLogger.js';
+import { fmtShort, makeFmt } from './ui/formatters.js';
+import { setField, getField, closeModal as closeModalFn } from './ui/modalHelpers.js';
+import { showToast }    from './ui/toastManager.js';
+
+export class UIManager {
   constructor(state) {
     this._state = state;
     this._toastTimeout = null;
@@ -46,6 +52,42 @@ class UIManager {
     this._renderPropertyList();
     this._renderBrokerageList();
     this._bindNavTabs();
+
+    // Wire static action buttons (replaces inline onclick attributes)
+    document.getElementById('btn-new-account')?.addEventListener('click', () => this.openNewAccountModal());
+    document.getElementById('btn-new-property')?.addEventListener('click', () => this.openNewPropertyModal());
+    document.getElementById('btn-new-brokerage')?.addEventListener('click', () => this.openNewBrokerageModal());
+    document.getElementById('btn-save-account')?.addEventListener('click', () => this.saveAccountModal());
+    document.getElementById('btn-save-property')?.addEventListener('click', () => this.savePropertyModal());
+    document.getElementById('btn-save-brokerage')?.addEventListener('click', () => this.saveBrokerageModal());
+
+    // Event delegation for dynamically rendered list buttons
+    const accountList = document.getElementById('account-list');
+    if (accountList) accountList.addEventListener('click', e => {
+      const btn = e.target.closest('[data-action]');
+      if (!btn) return;
+      const { action, id } = btn.dataset;
+      if (action === 'edit')   this.openAccountModal(id);
+      if (action === 'remove') this.removeAccount(id);
+    });
+
+    const propertyList = document.getElementById('property-list');
+    if (propertyList) propertyList.addEventListener('click', e => {
+      const btn = e.target.closest('[data-action]');
+      if (!btn) return;
+      const { action, id } = btn.dataset;
+      if (action === 'edit')   this.openPropertyModal(id);
+      if (action === 'remove') this.removeProperty(id);
+    });
+
+    const brokerageList = document.getElementById('brokerage-list');
+    if (brokerageList) brokerageList.addEventListener('click', e => {
+      const btn = e.target.closest('[data-action]');
+      if (!btn) return;
+      const { action, id } = btn.dataset;
+      if (action === 'edit')   this.openBrokerageModal(id);
+      if (action === 'remove') this.removeBrokerage(id);
+    });
   }
 
   // ── Navigation tabs ───────────────────────────────────────────────────────
@@ -230,14 +272,8 @@ class UIManager {
   // ══════════════════════════════════════════════════════════════════════════
   updateKPIs(years) {
     if (!years || years.length === 0) return;
-    const s       = this._state;
-    const symbol  = s.getCurrencySymbol();
-    const fmt     = (v) => {
-      const d = s.toDisplayCurrency(v);
-      if (Math.abs(d) >= 1_000_000) return symbol + (d / 1_000_000).toFixed(2) + 'M';
-      if (Math.abs(d) >= 1_000)     return symbol + (d / 1_000).toFixed(0) + 'K';
-      return symbol + d.toFixed(0);
-    };
+    const s   = this._state;
+    const fmt = makeFmt(s);
 
     const retirementYear = s.getEarliestRetirementYear();
     const retYear = years.find(y => y.year === retirementYear) || years[0];
@@ -266,26 +302,12 @@ class UIManager {
   renderProjectionTable(years) {
     const tbody = document.getElementById('projection-tbody');
     if (!tbody) return;
-    const s = this._state;
-    const symbol = s.getCurrencySymbol();
+    const s   = this._state;
+    const fmt = makeFmt(s);
 
     // Store for drill-down
     this._projectionByYear = {};
     years.forEach(yd => { this._projectionByYear[yd.year] = yd; });
-
-    const fmt = (v, colored = false) => {
-      const d = s.toDisplayCurrency(v);
-      const abs = Math.abs(d);
-      let str;
-      if (abs >= 1_000_000) str = symbol + (d / 1_000_000).toFixed(2) + 'M';
-      else if (abs >= 1_000) str = symbol + (d / 1_000).toFixed(0) + 'K';
-      else str = symbol + d.toFixed(0);
-      if (colored) {
-        const cls = d >= 0 ? 'pos' : 'neg';
-        return `<span class="${cls}">${str}</span>`;
-      }
-      return str;
-    };
 
     tbody.innerHTML = '';
     years.forEach(yd => {
@@ -336,16 +358,8 @@ class UIManager {
   openCashFlowModal(yd, type) {
     const modal = document.getElementById('modal-overlay-cashflow');
     if (!modal) return;
-    const s = this._state;
-    const symbol = s.getCurrencySymbol();
-
-    const fmt = v => {
-      const d = s.toDisplayCurrency(v);
-      const abs = Math.abs(d);
-      if (abs >= 1_000_000) return symbol + (d / 1_000_000).toFixed(2) + 'M';
-      if (abs >= 1_000)     return symbol + (d / 1_000).toFixed(1) + 'K';
-      return symbol + d.toFixed(0);
-    };
+    const s   = this._state;
+    const fmt = makeFmt(s, { kDecimals: 1 });
 
     const isIncome = type === 'income';
     const items    = isIncome ? (yd.incomeDetail || []) : (yd.outflowDetail || []);
@@ -394,15 +408,8 @@ class UIManager {
   openTaxModal(yd, type) {
     const modal = document.getElementById('modal-overlay-cashflow');
     if (!modal) return;
-    const s = this._state;
-    const symbol = s.getCurrencySymbol();
-
-    const fmt = v => {
-      const d = s.toDisplayCurrency(Math.abs(v));
-      if (d >= 1_000_000) return symbol + (d / 1_000_000).toFixed(2) + 'M';
-      if (d >= 1_000)     return symbol + (d / 1_000).toFixed(1) + 'K';
-      return symbol + d.toFixed(0);
-    };
+    const s   = this._state;
+    const fmt = makeFmt(s, { kDecimals: 1, absInput: true });
 
     const isUS  = type === 'tax-us';
     const flag  = isUS ? '🇺🇸' : '🇦🇺';
@@ -469,16 +476,8 @@ class UIManager {
   openNetWorthModal(yd) {
     const modal = document.getElementById('modal-overlay-cashflow');
     if (!modal) return;
-    const s = this._state;
-    const symbol = s.getCurrencySymbol();
-
-    const fmt = v => {
-      const d = s.toDisplayCurrency(v);
-      const abs = Math.abs(d);
-      if (abs >= 1_000_000) return symbol + (d / 1_000_000).toFixed(2) + 'M';
-      if (abs >= 1_000)     return symbol + (d / 1_000).toFixed(1) + 'K';
-      return symbol + d.toFixed(0);
-    };
+    const s   = this._state;
+    const fmt = makeFmt(s, { kDecimals: 1 });
 
     document.getElementById('cashflow-modal-title').textContent = `Net Worth — ${yd.year}`;
 
@@ -559,8 +558,8 @@ class UIManager {
         </div>
         <span class="account-value">${sym}${this._fmtShort(acc.balance)}</span>
         <div class="account-actions">
-          <button class="btn-sm" onclick="uiManager.openAccountModal('${acc.id}')">Edit</button>
-          <button class="btn-sm danger" onclick="uiManager.removeAccount('${acc.id}')">×</button>
+          <button class="btn-sm" data-action="edit" data-id="${acc.id}">Edit</button>
+          <button class="btn-sm danger" data-action="remove" data-id="${acc.id}">×</button>
         </div>
       `;
       container.appendChild(item);
@@ -586,8 +585,8 @@ class UIManager {
         </div>
         <span class="account-value">${sym}${this._fmtShort(equity)} equity</span>
         <div class="account-actions">
-          <button class="btn-sm" onclick="uiManager.openPropertyModal('${prop.id}')">Edit</button>
-          <button class="btn-sm danger" onclick="uiManager.removeProperty('${prop.id}')">×</button>
+          <button class="btn-sm" data-action="edit" data-id="${prop.id}">Edit</button>
+          <button class="btn-sm danger" data-action="remove" data-id="${prop.id}">×</button>
         </div>
       `;
       container.appendChild(item);
@@ -612,19 +611,15 @@ class UIManager {
         </div>
         <span class="account-value">${sym}${this._fmtShort(b.balance)}</span>
         <div class="account-actions">
-          <button class="btn-sm" onclick="uiManager.openBrokerageModal('${b.id}')">Edit</button>
-          <button class="btn-sm danger" onclick="uiManager.removeBrokerage('${b.id}')">×</button>
+          <button class="btn-sm" data-action="edit" data-id="${b.id}">Edit</button>
+          <button class="btn-sm danger" data-action="remove" data-id="${b.id}">×</button>
         </div>
       `;
       container.appendChild(item);
     });
   }
 
-  _fmtShort(n) {
-    if (Math.abs(n) >= 1_000_000) return (n / 1_000_000).toFixed(2) + 'M';
-    if (Math.abs(n) >= 1_000)     return (n / 1_000).toFixed(0) + 'K';
-    return n.toFixed(0);
-  }
+  _fmtShort(n) { return fmtShort(n); }
 
   // ══════════════════════════════════════════════════════════════════════════
   // Account Modal
@@ -828,37 +823,16 @@ class UIManager {
   }
 
   // ── Modal helpers ─────────────────────────────────────────────────────────
-  closeModal(overlayId) {
-    const el = document.getElementById(overlayId);
-    if (el) el.classList.remove('open');
-  }
+  closeModal(overlayId) { closeModalFn(overlayId); }
 
-  _setField(id, value) {
-    const el = document.getElementById(id);
-    if (el) el.value = value;
-  }
+  _setField(id, value) { setField(id, value); }
 
-  _getField(id) {
-    const el = document.getElementById(id);
-    return el ? el.value : '';
-  }
+  _getField(id) { return getField(id); }
 
   // ══════════════════════════════════════════════════════════════════════════
   // Toast
   // ══════════════════════════════════════════════════════════════════════════
-  toast(message, type = 'info') {
-    const container = document.getElementById('toast-container');
-    if (!container) return;
-    const el = document.createElement('div');
-    el.className = `toast ${type}`;
-    el.textContent = message;
-    container.appendChild(el);
-    setTimeout(() => {
-      el.style.opacity = '0';
-      el.style.transition = 'opacity 0.3s';
-      setTimeout(() => el.remove(), 300);
-    }, 3000);
-  }
+  toast(message, type = 'info') { showToast(message, type); }
 
   // ── Tax Bracket display ───────────────────────────────────────────────────
   renderTaxBrackets() {

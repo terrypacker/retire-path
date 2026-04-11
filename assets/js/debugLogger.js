@@ -218,4 +218,4 @@ class DebugLoggerClass {
   clear() { this.logs.length = 0; this.render(); }
 }
 
-const DebugLogger = new DebugLoggerClass();
+export const DebugLogger = new DebugLoggerClass();

@@ -22,7 +22,9 @@
  * Owns all Chart.js instances. Call update() when projection data changes.
  */
 
-class ChartManager {
+import { appState } from './appState.js';
+
+export class ChartManager {
   constructor() {
     this._charts = {};
     this._milestonesByYear = null;
@@ -629,4 +631,3 @@ class ChartManager {
   }
 }
 
-const chartManager = new ChartManager();

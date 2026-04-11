@@ -23,7 +23,7 @@
  * Reads from appState, writes projection results back.
  */
 
-class ProjectionEngine {
+export class ProjectionEngine {
   constructor(state, taxes) {
     this._state = state;
     this._taxes = taxes;

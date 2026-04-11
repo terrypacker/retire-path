@@ -19,10 +19,19 @@
 
 /**
  * app.js
- * Main application controller.
+ * Main application controller and ES module entry point.
  * Wires AppState → ProjectionEngine → ChartManager + UIManager.
  * Run once on DOMContentLoaded.
  */
+
+import { appState }         from './appState.js';
+import { taxEngine }        from './tax/TaxEngine.js';
+import { ProjectionEngine } from './projectionEngine.js';
+import { ChartManager }     from './chartManager.js';
+import { UIManager }        from './uiManager.js';
+
+// Module-scoped singletons
+const chartManager = new ChartManager();
 
 class App {
   constructor() {

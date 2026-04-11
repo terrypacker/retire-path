@@ -312,7 +312,7 @@
             <div class="card-subtitle">401(k), IRA, Roth, Super</div>
           </div>
           <div id="account-list" class="account-list"></div>
-          <button class="btn-add" onclick="uiManager.openNewAccountModal()">
+          <button class="btn-add" id="btn-new-account">
             ＋ Add Retirement Account
           </button>
         </div>
@@ -324,7 +324,7 @@
             <div class="card-subtitle">Real estate and mortgage details</div>
           </div>
           <div id="property-list" class="account-list"></div>
-          <button class="btn-add" onclick="uiManager.openNewPropertyModal()">
+          <button class="btn-add" id="btn-new-property">
             ＋ Add Property
           </button>
         </div>
@@ -336,7 +336,7 @@
             <div class="card-subtitle">Taxable investment accounts</div>
           </div>
           <div id="brokerage-list" class="account-list"></div>
-          <button class="btn-add" onclick="uiManager.openNewBrokerageModal()">
+          <button class="btn-add" id="btn-new-brokerage">
             ＋ Add Brokerage Account
           </button>
         </div>
@@ -630,7 +630,7 @@
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" data-close-modal>Cancel</button>
-      <button class="btn btn-primary" onclick="uiManager.saveAccountModal()">Save Account</button>
+      <button class="btn btn-primary" id="btn-save-account">Save Account</button>
     </div>
   </div>
 </div>
@@ -707,7 +707,7 @@
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" data-close-modal>Cancel</button>
-      <button class="btn btn-primary" onclick="uiManager.savePropertyModal()">Save Property</button>
+      <button class="btn btn-primary" id="btn-save-property">Save Property</button>
     </div>
   </div>
 </div>
@@ -776,7 +776,7 @@
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" data-close-modal>Cancel</button>
-      <button class="btn btn-primary" onclick="uiManager.saveBrokerageModal()">Save Account</button>
+      <button class="btn btn-primary" id="btn-save-brokerage">Save Account</button>
     </div>
   </div>
 </div>
@@ -785,15 +785,11 @@
 <div class="toast-container" id="toast-container"></div>
 
 <!-- ══════════════════ SCRIPTS ══════════════════ -->
-<script src="assets/js/debugLogger.js"></script>
+<!-- CDN libraries load first as plain scripts to populate window.Chart -->
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
-<script src="assets/js/appState.js"></script>
-<script src="assets/js/taxEngine.js"></script>
-<script src="assets/js/projectionEngine.js"></script>
-<script src="assets/js/chartManager.js"></script>
-<script src="assets/js/uiManager.js"></script>
-<script src="assets/js/app.js"></script>
+<!-- ES module entry point — imports the full module graph -->
+<script type="module" src="assets/js/app.js"></script>
 
 <script>
   // Help iframe switcher
