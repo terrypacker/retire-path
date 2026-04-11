@@ -233,7 +233,7 @@ class ChartManager {
     const canvas = document.getElementById('chart-income-expenses');
     if (!canvas) return;
 
-    const labels   = years.map(y => y.year);
+    const labels   = years.map(y => String(y.year));
     const income   = years.map(y => y.totalIncome);
     const expenses = years.map(y => y.totalOutflows);
     const netFlow  = years.map(y => y.netCashFlow);
@@ -286,7 +286,7 @@ class ChartManager {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
 
-    const labels     = years.map(y => y.year);
+    const labels     = years.map(y => String(y.year));
     const employment = years.map(y => y.employmentIncome);
     const ss         = years.map(y => y.socialSecurityTotal);
     const withdrawals= years.map(y => y.accountWithdrawals);
@@ -356,7 +356,7 @@ class ChartManager {
     const canvas = document.getElementById('chart-tax');
     if (!canvas) return;
 
-    const labels  = years.map(y => y.year);
+    const labels  = years.map(y => String(y.year));
     const usTaxes = years.map(y => y.usTax);
     const auTaxes = years.map(y => y.auTax);
     const rates   = years.map(y => y.totalIncome > 0 ? (y.estimatedTax / y.totalIncome) * 100 : 0);
@@ -444,6 +444,11 @@ class ChartManager {
     if (retirementYears.length === 0) return;
 
     const labels = retirementYears.map(y => String(y.year));
+    // Only keep event annotations whose year label exists in this chart's label set
+    const labelSet = new Set(labels);
+    const filteredAnnotations = Object.fromEntries(
+      Object.entries(this._eventAnnotations).filter(([, v]) => labelSet.has(v.xMin))
+    );
     const total  = retirementYears.map(y => y.totalAccountValue + y.totalBrokerageValue);
     const netWorth = retirementYears.map(y => y.netWorth);
 
@@ -488,7 +493,7 @@ class ChartManager {
                 borderWidth: 1,
                 borderDash: [4, 4],
               },
-              ...this._eventAnnotations,
+              ...filteredAnnotations,
             }
           }
         }
@@ -503,7 +508,7 @@ class ChartManager {
     const canvas = document.getElementById('chart-account-balances');
     if (!canvas) return;
 
-    const labels  = years.map(y => y.year);
+    const labels  = years.map(y => String(y.year));
     const palette = [
       '#4a6fa5', '#3d9e72', '#c9a84c', '#c0455a',
       '#3a8fa0', '#e4845a', '#9b6bb5', '#5a9e6b',
