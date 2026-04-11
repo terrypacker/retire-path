@@ -382,6 +382,16 @@ body {
   min-width: 36px;
   text-align: right;
 }
+.slider-expense-hint {
+  font-size: 0.72rem;
+  color: var(--text-secondary);
+  text-align: right;
+  margin-top: 2px;
+}
+.slider-expense-hint span {
+  font-family: 'IBM Plex Mono', monospace;
+  color: var(--accent-gold-light);
+}
 
 /* ── Cards in main area ── */
 .card {

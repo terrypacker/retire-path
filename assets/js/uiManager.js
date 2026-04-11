@@ -82,10 +82,28 @@ class UIManager {
     const s = this._state;
     this._bindInput('inflation-us',          v => s.set('inflationUS', +v),            s.get('inflationUS'));
     this._bindInput('inflation-aus',         v => s.set('inflationAUS', +v),           s.get('inflationAUS'));
-    this._bindInput('annual-expenses',       v => s.set('currentAnnualExpenses', +v),  s.get('currentAnnualExpenses'));
-    this._bindInput('retirement-ratio',      v => s.set('retirementExpenseRatio', +v / 100), s.get('retirementExpenseRatio') * 100);
+    this._bindInput('annual-expenses',       v => { s.set('currentAnnualExpenses', +v); this._updateRetirementExpenseHint(); }, s.get('currentAnnualExpenses'));
+    this._bindInput('retirement-ratio',      v => { s.set('retirementExpenseRatio', +v / 100); this._updateRetirementExpenseHint(); }, s.get('retirementExpenseRatio') * 100);
     this._bindInput('au-expense-ratio',      v => s.set('australiaExpenseRatio',  +v / 100), s.get('australiaExpenseRatio')  * 100);
     this._bindInput('target-end-balance',    v => s.set('targetEndBalance', +v),       s.get('targetEndBalance'));
+    this._updateRetirementExpenseHint();
+  }
+
+  // ── Retirement expense hint ───────────────────────────────────────────────
+  _updateRetirementExpenseHint() {
+    const el = document.getElementById('retirement-ratio-expense');
+    if (!el) return;
+    const s = this._state;
+    const annualExpenses = s.get('currentAnnualExpenses');
+    const ratio = s.get('retirementExpenseRatio');
+    const retirementExpense = annualExpenses * ratio;
+    const display = s.toDisplayCurrency(retirementExpense);
+    const symbol = s.getCurrencySymbol();
+    let formatted;
+    if (display >= 1_000_000)      formatted = symbol + (display / 1_000_000).toFixed(2) + 'M';
+    else if (display >= 1_000)     formatted = symbol + (display / 1_000).toFixed(1) + 'K';
+    else                           formatted = symbol + display.toFixed(0);
+    el.textContent = formatted;
   }
 
   // ── Move slider ───────────────────────────────────────────────────────────
@@ -130,6 +148,7 @@ class UIManager {
         document.querySelectorAll('.currency-toggle button').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
         this._state.set('currency', btn.dataset.currency);
+        this._updateRetirementExpenseHint();
       });
     });
     // Set initial active
