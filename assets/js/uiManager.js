@@ -83,6 +83,7 @@ class UIManager {
     this._bindInput('inflation-aus',         v => s.set('inflationAUS', +v),           s.get('inflationAUS'));
     this._bindInput('annual-expenses',       v => s.set('currentAnnualExpenses', +v),  s.get('currentAnnualExpenses'));
     this._bindInput('retirement-ratio',      v => s.set('retirementExpenseRatio', +v / 100), s.get('retirementExpenseRatio') * 100);
+    this._bindInput('au-expense-ratio',      v => s.set('australiaExpenseRatio',  +v / 100), s.get('australiaExpenseRatio')  * 100);
     this._bindInput('target-end-balance',    v => s.set('targetEndBalance', +v),       s.get('targetEndBalance'));
   }
 

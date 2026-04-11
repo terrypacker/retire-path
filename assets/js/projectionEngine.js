@@ -101,10 +101,20 @@ class ProjectionEngine {
     // ── Expenses ─────────────────────────────────────────────────────────────
     const baseExpenses = s.currentAnnualExpenses;
     const expenseRatio = allRetired ? s.retirementExpenseRatio : 1.0;
-    const inflFactor   = isPostMove
-      ? Math.pow(1 + inflAUS, yearsSinceStart)
-      : Math.pow(1 + inflUS,  yearsSinceStart);
-    const annualExpenses = baseExpenses * expenseRatio * inflFactor;
+    const currentYear  = new Date().getFullYear();
+
+    let annualExpenses;
+    if (!moveEnabled || year < moveYear) {
+      annualExpenses = baseExpenses * expenseRatio
+        * Math.pow(1 + inflUS, yearsSinceStart);
+    } else {
+      const yearsTilMove   = moveYear - currentYear;
+      const yearsAfterMove = year - moveYear;
+      const auRatio        = s.australiaExpenseRatio ?? 1.0;
+      annualExpenses = baseExpenses * expenseRatio * auRatio
+        * Math.pow(1 + inflUS,  yearsTilMove)
+        * Math.pow(1 + inflAUS, yearsAfterMove);
+    }
 
     // Mortgage payments (property)
     let mortgageTotal = 0;

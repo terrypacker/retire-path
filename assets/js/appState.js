@@ -166,6 +166,7 @@ class AppState {
       // ── Expenses ──────────────────────────────────────────
       currentAnnualExpenses: 90000,   // USD
       retirementExpenseRatio: 0.80,   // 80% of pre-retirement
+      australiaExpenseRatio: 1.0,     // AU living costs as fraction of US baseline
       targetEndBalance: 50000,        // buffer to die with
 
 // ── Projection cache ──────────────────────────────────

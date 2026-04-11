@@ -177,6 +177,16 @@
           </div>
         </div>
         <div class="form-group">
+          <label class="form-label">Australia Expense Ratio <span class="form-hint">🇦🇺 vs US baseline</span></label>
+          <div class="slider-wrap">
+            <div class="slider-row">
+              <input type="range" class="form-range" id="au-expense-ratio" min="50" max="150" value="100"
+                oninput="document.getElementById('au-expense-ratio-val').textContent=this.value+'%'">
+              <span class="slider-value" id="au-expense-ratio-val">100%</span>
+            </div>
+          </div>
+        </div>
+        <div class="form-group">
           <label class="form-label">Target End Balance</label>
           <div class="input-prefix-wrap">
             <span class="input-prefix">$</span>
