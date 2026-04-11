@@ -270,9 +270,19 @@ class AustraliaTaxModule extends BaseTaxModule {
           { min: 120000,  max: 180000,  rate: 0.37 },
           { min: 180000,  max: Infinity, rate: 0.45 },
         ],
+        // Medicare Levy: 2% with phase-in for low incomes (ATO FY2024-25)
+        // Below lowerThreshold: no levy; phase-in zone (10% of excess) up to ceiling (~$32,500)
+        medicareLevy: { rate: 0.02, lowerThreshold: 26000, phaseInRate: 0.10 },
+        // Medicare Levy Surcharge: applies to those WITHOUT private hospital cover
+        // Rate is applied to entire taxable income once threshold is crossed
+        medicareLevySurcharge: [
+          { min: 93000,  rate: 0.010 },
+          { min: 108000, rate: 0.0125 },
+          { min: 144000, rate: 0.015 },
+        ],
       },
       2025: {
-        // FY2025-26 — same rates as FY2024-25 (no bracket changes announced)
+        // FY2025-26 — lower 30% bracket extended to $135k (2025 Federal Budget)
         brackets: [
           { min: 0,       max: 18200,   rate: 0.00 },
           { min: 18200,   max: 45000,   rate: 0.19 },
@@ -280,9 +290,16 @@ class AustraliaTaxModule extends BaseTaxModule {
           { min: 135000,  max: 190000,  rate: 0.37 },
           { min: 190000,  max: Infinity, rate: 0.45 },
         ],
+        // Medicare Levy threshold unchanged from FY2024-25
+        medicareLevy: { rate: 0.02, lowerThreshold: 26000, phaseInRate: 0.10 },
+        // MLS thresholds unchanged from FY2024-25
+        medicareLevySurcharge: [
+          { min: 93000,  rate: 0.010 },
+          { min: 108000, rate: 0.0125 },
+          { min: 144000, rate: 0.015 },
+        ],
       },
     };
-    this._medicareLevy = 0.02;
     this._superTaxRate = 0.15; // within-fund contributions tax
     this._superWithdrawalTaxUnder60 = 0.20; // simplified
   }
@@ -329,22 +346,51 @@ class AustraliaTaxModule extends BaseTaxModule {
   }
 
   calcIncomeTax(grossIncome, context = {}) {
-    const { year = 2024, isResident = true, taxBaseYear = 2024 } = context;
+    const { year = 2024, isResident = true, taxBaseYear = 2024, hasPrivateHospitalCover = false } = context;
     const { data, year: baseYear } = this._getRateData(taxBaseYear);
     const brackets = this._inflateBrackets(data.brackets, baseYear, year);
     const { tax, marginalRate, breakdown } = this._applyBrackets(grossIncome, brackets);
-    const medicare = grossIncome > 26000 ? grossIncome * this._medicareLevy : 0;
-    // LITO (Low Income Tax Offset) — simplified
+
+    // Medicare Levy — 2% with phase-in for low incomes
+    // Thresholds are inflated at 3% p.a. beyond the base year (ATO indexes these to CPI)
+    const mlData = data.medicareLevy || { rate: 0.02, lowerThreshold: 26000, phaseInRate: 0.10 };
+    const inflFactor = Math.pow(1.03, year - baseYear);
+    const mlThreshold = Math.round(mlData.lowerThreshold * inflFactor);
+    // Phase-in ceiling: income at which full levy equals phase-in levy
+    // ceiling = lowerThreshold * phaseInRate / (phaseInRate - rate)
+    const mlCeiling = Math.round(mlData.lowerThreshold * mlData.phaseInRate / (mlData.phaseInRate - mlData.rate) * inflFactor);
+    let medicareLevy;
+    if (grossIncome <= mlThreshold) {
+      medicareLevy = 0;
+    } else if (grossIncome < mlCeiling) {
+      medicareLevy = mlData.phaseInRate * (grossIncome - mlThreshold);
+    } else {
+      medicareLevy = grossIncome * mlData.rate;
+    }
+
+    // Medicare Levy Surcharge — additional 1–1.5% for those WITHOUT private hospital cover
+    // MLS thresholds are NOT regularly indexed; applied to total income at the highest bracket rate
+    let medicareLevySurcharge = 0;
+    if (!hasPrivateHospitalCover && data.medicareLevySurcharge) {
+      const mlsRate = data.medicareLevySurcharge
+        .filter(t => grossIncome > t.min)
+        .reduce((_acc, t) => t.rate, 0);
+      medicareLevySurcharge = mlsRate > 0 ? grossIncome * mlsRate : 0;
+    }
+
+    // LITO (Low Income Tax Offset) — simplified, thresholds unchanged since FY2022-23
     let lito = 0;
     if (grossIncome <= 37500) lito = 700;
     else if (grossIncome <= 45000) lito = 700 - ((grossIncome - 37500) * 0.05);
     else if (grossIncome <= 66667) lito = 325 - ((grossIncome - 45000) * 0.015);
     lito = Math.max(0, lito);
-    const total = Math.max(0, tax - lito) + medicare;
+
+    const total = Math.max(0, tax - lito) + medicareLevy + medicareLevySurcharge;
     return {
       tax: total,
       incomeTax: Math.max(0, tax - lito),
-      medicareLevy: medicare,
+      medicareLevy,
+      medicareLevySurcharge,
       lito,
       effectiveRate: grossIncome > 0 ? total / grossIncome : 0,
       marginalRate,
