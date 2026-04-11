@@ -268,7 +268,8 @@ class UIManager {
         <td>${fmt(yd.totalIncome)}</td>
         <td>${fmt(yd.totalOutflows)}</td>
         <td>${fmt(yd.netCashFlow, true)}</td>
-        <td>${fmt(yd.estimatedTax)}</td>
+        <td>${fmt(yd.usTax)}</td>
+        <td>${fmt(yd.auTax)}</td>
         <td>${fmt(yd.netWorth)}</td>
       `;
       tbody.appendChild(tr);

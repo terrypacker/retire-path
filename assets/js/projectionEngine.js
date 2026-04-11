@@ -277,14 +277,15 @@ class ProjectionEngine {
 
     // ── Tax estimate ──────────────────────────────────────────────────────────
     const totalIncome = employmentIncome + socialSecurityTotal + totalAccountWithdrawals + propertySaleIncome;
-    let estimatedTax  = 0;
+    let usTax = 0;
+    let auTax = 0;
 
     // US tax always applies — US citizens are taxed on worldwide income
     if (totalIncome > 0) {
       const usResult = this._taxes.get('US').calcIncomeTax(totalIncome, {
         year, filingStatus: 'mfj', isRetired: allRetired, taxBaseYear,
       });
-      estimatedTax += usResult.tax;
+      usTax = usResult.tax;
     }
 
     // Post-move: AU income tax assessed per person (Australia taxes individuals separately).
@@ -306,11 +307,13 @@ class ProjectionEngine {
       // Apportion the US tax already estimated against the AU-taxable income fraction
       const auTaxableTotal = employmentIncome + totalAccountWithdrawals;
       const usTaxOnAUIncome = totalIncome > 0
-        ? estimatedTax * (auTaxableTotal / totalIncome)
+        ? usTax * (auTaxableTotal / totalIncome)
         : 0;
       const auNetIncomeTax = Math.max(0, auIncomeTaxTotal - usTaxOnAUIncome);
-      estimatedTax += auNetIncomeTax + brokerageAUCGTTotal;
+      auTax = auNetIncomeTax + brokerageAUCGTTotal;
     }
+
+    const estimatedTax = usTax + auTax;
 
     // ── Net worth ─────────────────────────────────────────────────────────────
     const totalAccountValue = Object.values(nextAccBalances).reduce((a, b) => a + b, 0);
@@ -334,6 +337,8 @@ class ProjectionEngine {
       // Expenses
       annualExpenses,
       mortgageTotal,
+      usTax,
+      auTax,
       estimatedTax,
       totalOutflows:      annualExpenses + mortgageTotal + estimatedTax,
 
@@ -372,7 +377,7 @@ class ProjectionEngine {
     return {
       year, isRetired: true, anyRetired: true, isPostMove: false, country: 'US',
       employmentIncome: 0, socialSecurityTotal: 0, accountWithdrawals: 0, propertySaleIncome: 0, totalIncome: 0,
-      annualExpenses: 0, mortgageTotal: 0, estimatedTax: 0, totalOutflows: 0, netCashFlow: 0,
+      annualExpenses: 0, mortgageTotal: 0, usTax: 0, auTax: 0, estimatedTax: 0, totalOutflows: 0, netCashFlow: 0,
       totalAccountValue: 0, totalPropertyEquity: 0, totalPropertyValue: 0, totalBrokerageValue: 0, netWorth: 0,
       milestones: [],
       _nextAccountBalances: accBalances,

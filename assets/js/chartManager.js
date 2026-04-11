@@ -314,9 +314,10 @@ class ChartManager {
     const canvas = document.getElementById('chart-tax');
     if (!canvas) return;
 
-    const labels = years.map(y => y.year);
-    const taxes  = years.map(y => y.estimatedTax);
-    const rates  = years.map(y => y.totalIncome > 0 ? (y.estimatedTax / y.totalIncome) * 100 : 0);
+    const labels  = years.map(y => y.year);
+    const usTaxes = years.map(y => y.usTax);
+    const auTaxes = years.map(y => y.auTax);
+    const rates   = years.map(y => y.totalIncome > 0 ? (y.estimatedTax / y.totalIncome) * 100 : 0);
 
     this._make('chart-tax', {
       type: 'bar',
@@ -324,11 +325,21 @@ class ChartManager {
         labels,
         datasets: [
           {
-            label: 'Tax Amount',
-            data: taxes,
-            backgroundColor: 'rgba(192,69,90,0.5)',
+            label: '🇺🇸 US Tax',
+            data: usTaxes,
+            backgroundColor: 'rgba(100,149,237,0.6)',
+            borderColor: '#6495ed',
+            borderRadius: 3,
+            stack: 'tax',
+            order: 3,
+          },
+          {
+            label: '🇦🇺 AU Tax',
+            data: auTaxes,
+            backgroundColor: 'rgba(192,69,90,0.6)',
             borderColor: '#c0455a',
             borderRadius: 3,
+            stack: 'tax',
             order: 2,
           },
           {
@@ -347,8 +358,28 @@ class ChartManager {
       },
       options: {
         ...this._baseOptions(),
+        plugins: {
+          ...this._baseOptions().plugins,
+          tooltip: {
+            ...this._baseOptions().plugins.tooltip,
+            callbacks: {
+              label: (ctx) => {
+                if (ctx.dataset.yAxisID === 'yRate') {
+                  return ` ${ctx.dataset.label}: ${ctx.raw.toFixed(1)}%`;
+                }
+                const symbol = appState.getCurrencySymbol();
+                const val = appState.toDisplayCurrency(ctx.raw);
+                return ` ${ctx.dataset.label}: ${symbol}${this._fmt(val)}`;
+              }
+            }
+          }
+        },
         scales: {
           ...this._baseOptions().scales,
+          y: {
+            ...this._baseOptions().scales?.y,
+            stacked: true,
+          },
           yRate: {
             position: 'right',
             grid: { drawOnChartArea: false },
