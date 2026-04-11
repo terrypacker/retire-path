@@ -125,8 +125,8 @@ class ChartManager {
 
       annotations[`evt_${yd.year}`] = {
         type: 'line',
-        xMin: yd.year,
-        xMax: yd.year,
+        xMin: String(yd.year),
+        xMax: String(yd.year),
         borderColor: color,
         borderWidth: 1.5,
         borderDash: [5, 4],
@@ -154,7 +154,7 @@ class ChartManager {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
 
-    const labels = years.map(y => y.year);
+    const labels = years.map(y => String(y.year));
     const acctData   = years.map(y => y.totalAccountValue);
     const propData   = years.map(y => y.totalPropertyEquity);
     const brokData   = years.map(y => y.totalBrokerageValue);
@@ -443,7 +443,7 @@ class ChartManager {
     const retirementYears = years.filter(y => y.isRetired);
     if (retirementYears.length === 0) return;
 
-    const labels = retirementYears.map(y => y.year);
+    const labels = retirementYears.map(y => String(y.year));
     const total  = retirementYears.map(y => y.totalAccountValue + y.totalBrokerageValue);
     const netWorth = retirementYears.map(y => y.netWorth);
 
