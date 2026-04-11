@@ -323,6 +323,8 @@ class ProjectionEngine {
     const totalIncome = employmentIncome + socialSecurityTotal + totalAccountWithdrawals + propertySaleIncome;
     let usTax = 0;
     let auTax = 0;
+    const usTaxDetail = [];
+    const auTaxDetail = [];
 
     // US tax always applies — US citizens are taxed on worldwide income.
     // Brokerage long-term gains are taxed at preferential rates (0/15/20%), not ordinary rates.
@@ -340,6 +342,14 @@ class ProjectionEngine {
         );
         usTax += usCGTResult.tax;
       }
+      // Build US tax detail
+      if (usResult.incomeTax > 0) usTaxDetail.push({
+        label: 'Ordinary Income Tax',
+        amount: usResult.incomeTax,
+        note: `std. deduction $${Math.round(usResult.stdDeduction / 1000)}K applied`,
+      });
+      if (usResult.ficaTax > 0) usTaxDetail.push({ label: 'FICA (Social Security & Medicare)', amount: usResult.ficaTax });
+      if (usCGTResult.tax > 0) usTaxDetail.push({ label: 'Capital Gains Tax (long-term)', amount: usCGTResult.tax });
     }
 
     // Post-move: AU income tax assessed per person (Australia taxes individuals separately).
@@ -355,8 +365,26 @@ class ProjectionEngine {
         const pIncome = personIncome[p.id];
         const personAUIncome = pIncome.employment + pIncome.withdrawals;
         if (personAUIncome > 0) {
-          auIncomeTaxTotal += auMod.calcIncomeTax(personAUIncome, { year, isResident: true, taxBaseYear }).tax;
+          const auResult = auMod.calcIncomeTax(personAUIncome, { year, isResident: true, taxBaseYear });
+          auIncomeTaxTotal += auResult.tax;
+          // Per-person AU tax detail (show gross income tax then LITO as a credit)
+          const grossIncomeTax = auResult.incomeTax + auResult.lito;
+          if (grossIncomeTax > 0)        auTaxDetail.push({ label: `${p.name} — Income Tax`, amount: grossIncomeTax });
+          if (auResult.lito > 0)         auTaxDetail.push({ label: `${p.name} — LITO Offset`, amount: auResult.lito, isCredit: true });
+          if (auResult.medicareLevy > 0) auTaxDetail.push({ label: `${p.name} — Medicare Levy (2%)`, amount: auResult.medicareLevy });
+          if (auResult.medicareLevySurcharge > 0) {
+            const mlsRatePct = personAUIncome > 0 ? (auResult.medicareLevySurcharge / personAUIncome * 100).toFixed(2) : '';
+            auTaxDetail.push({
+              label: `${p.name} — Medicare Levy Surcharge (${mlsRatePct}%)`,
+              amount: auResult.medicareLevySurcharge,
+              note: 'no private hospital cover',
+            });
+          }
         }
+      });
+      if (brokerageAUCGTTotal > 0) auTaxDetail.push({
+        label: 'Brokerage CGT (post-move gains, 50% discount)',
+        amount: brokerageAUCGTTotal,
       });
       // Apportion the US tax already estimated against the AU-taxable income fraction
       const auTaxableTotal = employmentIncome + totalAccountWithdrawals;
@@ -367,6 +395,18 @@ class ProjectionEngine {
       // Treaty credit for CGT: AU CGT reduced by US CGT already paid on the same gains.
       const auNetCGT = Math.max(0, brokerageAUCGTTotal - usCGTResult.tax);
       auTax = auNetIncomeTax + auNetCGT;
+      if (usTaxOnAUIncome > 0) auTaxDetail.push({
+        label: 'FITO Credit (US tax offset)',
+        amount: usTaxOnAUIncome,
+        isCredit: true,
+        note: 'US tax paid on AU-source income',
+      });
+      if (usCGTResult.tax > 0 && brokerageAUCGTTotal > 0) auTaxDetail.push({
+        label: 'Treaty CGT Credit (US CGT offset)',
+        amount: Math.min(usCGTResult.tax, brokerageAUCGTTotal),
+        isCredit: true,
+        note: 'US CGT already paid on same gains',
+      });
     }
 
     const estimatedTax = usTax + auTax;
@@ -440,6 +480,8 @@ class ProjectionEngine {
       // Cash flow detail (for drill-down modal)
       incomeDetail,
       outflowDetail,
+      usTaxDetail,
+      auTaxDetail,
 
       // Per-asset balance snapshot (for account balance chart)
       assetBalances,
@@ -475,6 +517,8 @@ class ProjectionEngine {
       milestones: [],
       incomeDetail: [],
       outflowDetail: [],
+      usTaxDetail: [],
+      auTaxDetail: [],
       assetBalances: {},
       _nextAccountBalances: accBalances,
       _nextPropertyValues:  propValues,

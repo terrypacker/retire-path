@@ -306,8 +306,8 @@ class UIManager {
         <td class="cell-drilldown" data-year="${yd.year}" data-type="income" title="Click for breakdown">${fmt(yd.totalIncome)}</td>
         <td class="cell-drilldown" data-year="${yd.year}" data-type="outflow" title="Click for breakdown">${fmt(yd.totalOutflows)}</td>
         <td>${fmt(yd.netCashFlow, true)}</td>
-        <td>${fmt(yd.usTax)}</td>
-        <td>${fmt(yd.auTax)}</td>
+        <td class="cell-drilldown" data-year="${yd.year}" data-type="tax-us" title="Click for US tax breakdown">${fmt(yd.usTax)}</td>
+        <td class="cell-drilldown" data-year="${yd.year}" data-type="tax-au" title="Click for AU tax breakdown">${fmt(yd.auTax)}</td>
         <td>${fmt(yd.netWorth)}</td>
       `;
       tbody.appendChild(tr);
@@ -317,7 +317,13 @@ class UIManager {
     tbody.querySelectorAll('.cell-drilldown').forEach(cell => {
       cell.addEventListener('click', () => {
         const yd = this._projectionByYear[+cell.dataset.year];
-        if (yd) this.openCashFlowModal(yd, cell.dataset.type);
+        if (!yd) return;
+        const type = cell.dataset.type;
+        if (type === 'tax-us' || type === 'tax-au') {
+          this.openTaxModal(yd, type);
+        } else {
+          this.openCashFlowModal(yd, type);
+        }
       });
     });
   }
@@ -374,6 +380,81 @@ class UIManager {
       <table class="proj-table cf-table">
         <thead><tr><th>Source</th><th>Amount</th><th>%</th><th>Notes</th></tr></thead>
         <tbody>${rows}${totalRow}</tbody>
+      </table>
+    `;
+
+    modal.classList.add('open');
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // Tax Drill-Down Modal
+  // ══════════════════════════════════════════════════════════════════════════
+  openTaxModal(yd, type) {
+    const modal = document.getElementById('modal-overlay-cashflow');
+    if (!modal) return;
+    const s = this._state;
+    const symbol = s.getCurrencySymbol();
+
+    const fmt = v => {
+      const d = s.toDisplayCurrency(Math.abs(v));
+      if (d >= 1_000_000) return symbol + (d / 1_000_000).toFixed(2) + 'M';
+      if (d >= 1_000)     return symbol + (d / 1_000).toFixed(1) + 'K';
+      return symbol + d.toFixed(0);
+    };
+
+    const isUS  = type === 'tax-us';
+    const flag  = isUS ? '🇺🇸' : '🇦🇺';
+    const label = isUS ? 'US' : 'Australian';
+    const detail = isUS ? (yd.usTaxDetail || []) : (yd.auTaxDetail || []);
+    const total  = isUS ? yd.usTax : yd.auTax;
+
+    document.getElementById('cashflow-modal-title').textContent =
+      `${flag} ${yd.year} ${label} Tax Breakdown`;
+
+    const charges = detail.filter(d => !d.isCredit);
+    const credits = detail.filter(d =>  d.isCredit);
+
+    const chargeRows = charges.map(item => {
+      const note = item.note ? `<span class="cf-note">${item.note}</span>` : '';
+      return `<tr>
+        <td>${item.label}</td>
+        <td class="cf-amount">${fmt(item.amount)}</td>
+        <td class="tax-notes">${note}</td>
+      </tr>`;
+    }).join('');
+
+    let creditSection = '';
+    if (credits.length > 0) {
+      const creditRows = credits.map(item => {
+        const note = item.note ? `<span class="cf-note">${item.note}</span>` : '';
+        return `<tr>
+          <td>${item.label}</td>
+          <td class="cf-amount neg">−${fmt(item.amount)}</td>
+          <td class="tax-notes">${note}</td>
+        </tr>`;
+      }).join('');
+      creditSection = `
+        <tr class="cf-section-row"><td colspan="3">Credits &amp; Offsets Applied</td></tr>
+        ${creditRows}
+      `;
+    }
+
+    const emptyRow = detail.length === 0
+      ? `<tr><td colspan="3" style="text-align:center;color:#8a94b0;padding:16px;">
+           ${!isUS && !yd.isPostMove ? 'No Australian tax — pre-move year' : 'No tax data for this year'}
+         </td></tr>`
+      : '';
+
+    const totalRow = `<tr class="cf-total-row">
+      <td>Net ${label} Tax</td>
+      <td class="cf-amount">${fmt(total)}</td>
+      <td></td>
+    </tr>`;
+
+    document.getElementById('cashflow-modal-body').innerHTML = `
+      <table class="proj-table cf-table cf-table-tax">
+        <thead><tr><th>Component</th><th>Amount</th><th>Notes</th></tr></thead>
+        <tbody>${emptyRow}${chargeRows}${creditSection}${totalRow}</tbody>
       </table>
     `;
 
