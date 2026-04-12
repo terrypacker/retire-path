@@ -34,60 +34,65 @@ export class UIManager {
     this._state = state;
     this._toastTimeout = null;
     this._projectionByYear = {};
+    this._bound = false;
   }
 
   // ══════════════════════════════════════════════════════════════════════════
   // Bootstrap — wire all sidebar inputs to state
   // ══════════════════════════════════════════════════════════════════════════
   init() {
-    this._bindPeopleInputs();
-    this._bindFinanceInputs();
-    this._bindMoveSlider();
-    this._bindCurrencyToggle();
-    this._bindTaxYearSelect();
-    this._bindFxRate();
-    this._bindSaveLoad();
-    this._bindFileBug();
+    if (!this._bound) {
+      this._bindPeopleInputs();
+      this._bindFinanceInputs();
+      this._bindMoveSlider();
+      this._bindCurrencyToggle();
+      this._bindTaxYearSelect();
+      this._bindFxRate();
+      this._bindSaveLoad();
+      this._bindFileBug();
+      this._bindNavTabs();
+
+      // Wire static action buttons (replaces inline onclick attributes)
+      document.getElementById('btn-new-account')?.addEventListener('click', () => this.openNewAccountModal());
+      document.getElementById('btn-new-property')?.addEventListener('click', () => this.openNewPropertyModal());
+      document.getElementById('btn-new-brokerage')?.addEventListener('click', () => this.openNewBrokerageModal());
+      document.getElementById('btn-save-account')?.addEventListener('click', () => this.saveAccountModal());
+      document.getElementById('btn-save-property')?.addEventListener('click', () => this.savePropertyModal());
+      document.getElementById('btn-save-brokerage')?.addEventListener('click', () => this.saveBrokerageModal());
+
+      // Event delegation for dynamically rendered list buttons
+      const accountList = document.getElementById('account-list');
+      if (accountList) accountList.addEventListener('click', e => {
+        const btn = e.target.closest('[data-action]');
+        if (!btn) return;
+        const { action, id } = btn.dataset;
+        if (action === 'edit')   this.openAccountModal(id);
+        if (action === 'remove') this.removeAccount(id);
+      });
+
+      const propertyList = document.getElementById('property-list');
+      if (propertyList) propertyList.addEventListener('click', e => {
+        const btn = e.target.closest('[data-action]');
+        if (!btn) return;
+        const { action, id } = btn.dataset;
+        if (action === 'edit')   this.openPropertyModal(id);
+        if (action === 'remove') this.removeProperty(id);
+      });
+
+      const brokerageList = document.getElementById('brokerage-list');
+      if (brokerageList) brokerageList.addEventListener('click', e => {
+        const btn = e.target.closest('[data-action]');
+        if (!btn) return;
+        const { action, id } = btn.dataset;
+        if (action === 'edit')   this.openBrokerageModal(id);
+        if (action === 'remove') this.removeBrokerage(id);
+      });
+
+      this._bound = true;
+    }
     this._renderAccountList();
     this._renderPropertyList();
     this._renderBrokerageList();
-    this._bindNavTabs();
-
-    // Wire static action buttons (replaces inline onclick attributes)
-    document.getElementById('btn-new-account')?.addEventListener('click', () => this.openNewAccountModal());
-    document.getElementById('btn-new-property')?.addEventListener('click', () => this.openNewPropertyModal());
-    document.getElementById('btn-new-brokerage')?.addEventListener('click', () => this.openNewBrokerageModal());
-    document.getElementById('btn-save-account')?.addEventListener('click', () => this.saveAccountModal());
-    document.getElementById('btn-save-property')?.addEventListener('click', () => this.savePropertyModal());
-    document.getElementById('btn-save-brokerage')?.addEventListener('click', () => this.saveBrokerageModal());
-
-    // Event delegation for dynamically rendered list buttons
-    const accountList = document.getElementById('account-list');
-    if (accountList) accountList.addEventListener('click', e => {
-      const btn = e.target.closest('[data-action]');
-      if (!btn) return;
-      const { action, id } = btn.dataset;
-      if (action === 'edit')   this.openAccountModal(id);
-      if (action === 'remove') this.removeAccount(id);
-    });
-
-    const propertyList = document.getElementById('property-list');
-    if (propertyList) propertyList.addEventListener('click', e => {
-      const btn = e.target.closest('[data-action]');
-      if (!btn) return;
-      const { action, id } = btn.dataset;
-      if (action === 'edit')   this.openPropertyModal(id);
-      if (action === 'remove') this.removeProperty(id);
-    });
-
-    const brokerageList = document.getElementById('brokerage-list');
-    if (brokerageList) brokerageList.addEventListener('click', e => {
-      const btn = e.target.closest('[data-action]');
-      if (!btn) return;
-      const { action, id } = btn.dataset;
-      if (action === 'edit')   this.openBrokerageModal(id);
-      if (action === 'remove') this.removeBrokerage(id);
-    });
   }
 
   // ── Navigation tabs ───────────────────────────────────────────────────────
