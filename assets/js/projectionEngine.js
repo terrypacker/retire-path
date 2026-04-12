@@ -190,11 +190,15 @@ export class ProjectionEngine {
     const nextAccBalances = {};
     let totalAccountContributions  = 0;
     let totalAccountWithdrawals    = 0;
+    let usTaxableWithdrawals       = 0;   // US ordinary-income portion of withdrawals
+    let usTotalPenalty             = 0;   // 10% early-withdrawal penalty (IRS, separate from income tax)
     let withdrawalGapRemaining     = expenseGap;
     let brokerageAUCGTTotal        = 0;
     let brokerageGainWithdrawn     = 0;
-    const accountWithdrawalDetails  = [];
+    const accountWithdrawalDetails   = [];
     const brokerageWithdrawalDetails = [];
+    const usPenaltyDetails           = [];  // line items for US tax detail
+    const rothPostMoveDetails        = [];  // AU tax notes for Roth corpus/gains breakdown
 
     retirementAccts.forEach(acc => {
       const accData = accBalances[acc.id] || { balance: 0, contributions: 0, moveValueBasis: null };
@@ -232,12 +236,30 @@ export class ProjectionEngine {
       // Withdrawals to cover gap
       if (isRetired && acc.canWithdraw(ownerAge) && withdrawalGapRemaining > 0 && bal > 0) {
         const preWithdrawalBal = bal;
-        const treatCtx   = { age: ownerAge, year, moveValueBasis, contributions, balance: preWithdrawalBal };
-        // Delegate treatment to the account subclass — each type knows its own rules.
-        const treatment  = isPostMove
-          ? acc.getAUAccountTreatment('withdrawal', withdrawalGapRemaining, treatCtx)
-          : acc.getUSAccountTreatment('withdrawal', withdrawalGapRemaining, treatCtx);
         const withdrawal = Math.min(bal, withdrawalGapRemaining);
+        const treatCtx = { age: ownerAge, year, moveValueBasis, contributions, balance: preWithdrawalBal };
+
+        // Always compute US treatment — US citizens are taxed on worldwide income.
+        const usTreatment = acc.getUSAccountTreatment('withdrawal', withdrawal, treatCtx);
+        usTaxableWithdrawals += usTreatment.taxableIncome;
+        if (usTreatment.penaltyAmount > 0) {
+          usTotalPenalty += usTreatment.penaltyAmount;
+          usPenaltyDetails.push({
+            label: `${acc.getDisplayLabel()} — Early Withdrawal Penalty (10%)`,
+            amount: usTreatment.penaltyAmount,
+            note: usTreatment.note,
+          });
+        }
+
+        // Post-move: also compute AU treatment (AU taxes residents on worldwide income).
+        if (isPostMove && acc.ownerId && personIncome[acc.ownerId] !== undefined) {
+          const auTreatment = acc.getAUAccountTreatment('withdrawal', withdrawal, treatCtx);
+          personIncome[acc.ownerId].withdrawals += auTreatment.taxableIncome;
+          if (auTreatment.note) {
+            rothPostMoveDetails.push({ label: `${acc.getDisplayLabel()} withdrawal`, amount: withdrawal, note: auTreatment.note });
+          }
+        }
+
         bal -= withdrawal;
 
         // Pro-rata reduce the contributions basis as funds are withdrawn
@@ -245,9 +267,6 @@ export class ProjectionEngine {
 
         withdrawalGapRemaining -= withdrawal;
         totalAccountWithdrawals += withdrawal;
-        if (acc.ownerId && personIncome[acc.ownerId] !== undefined) {
-          personIncome[acc.ownerId].withdrawals += withdrawal;
-        }
         accountWithdrawalDetails.push({ label: acc.getDisplayLabel(), amount: withdrawal });
       }
 
@@ -361,7 +380,7 @@ export class ProjectionEngine {
     });
 
     // ── Tax estimate ──────────────────────────────────────────────────────────
-    const totalIncome = employmentIncome + socialSecurityTotal + totalAccountWithdrawals + propertySaleIncome;
+    const totalIncome = employmentIncome + socialSecurityTotal + usTaxableWithdrawals + propertySaleIncome;
     let usTax = 0;
     let auTax = 0;
     const usTaxDetail = [];
@@ -384,6 +403,7 @@ export class ProjectionEngine {
         usTax += usCGTResult.tax;
       }
       // Build US tax detail
+      if (usTotalPenalty > 0) usTax += usTotalPenalty;
       if (usResult.incomeTax > 0) usTaxDetail.push({
         label: 'Ordinary Income Tax',
         amount: usResult.incomeTax,
@@ -391,6 +411,7 @@ export class ProjectionEngine {
       });
       if (usResult.ficaTax > 0) usTaxDetail.push({ label: 'FICA (Social Security & Medicare)', amount: usResult.ficaTax });
       if (usCGTResult.tax > 0) usTaxDetail.push({ label: 'Capital Gains Tax (long-term)', amount: usCGTResult.tax });
+      usPenaltyDetails.forEach(d => usTaxDetail.push(d));
     }
 
     // Post-move: AU income tax assessed per person (Australia taxes individuals separately).
@@ -427,8 +448,11 @@ export class ProjectionEngine {
         label: 'Brokerage CGT (post-move gains, 50% discount)',
         amount: brokerageAUCGTTotal,
       });
-      // Apportion the US tax already estimated against the AU-taxable income fraction
-      const auTaxableTotal = employmentIncome + totalAccountWithdrawals;
+      rothPostMoveDetails.forEach(d => auTaxDetail.push(d));
+      // Apportion the US tax already estimated against the AU-taxable income fraction.
+      // Use actual AU-taxable withdrawal amounts (not raw withdrawals) for the FITO ratio.
+      const auTaxableWithdrawals = Object.values(personIncome).reduce((s, pi) => s + pi.withdrawals, 0);
+      const auTaxableTotal = employmentIncome + auTaxableWithdrawals;
       const usTaxOnAUIncome = totalIncome > 0
         ? usTax * (auTaxableTotal / totalIncome)
         : 0;

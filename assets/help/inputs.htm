@@ -42,6 +42,18 @@
   .tag-us  { background: rgba(74,111,165,0.2); color: #6b91cc; }
   .tag-aus { background: rgba(201,168,76,0.2);  color: #e4c76b; }
   .tag-both{ background: rgba(61,158,114,0.2);  color: #52c490; }
+  .acct-type { background: #111520; border: 1px solid #2a3148; border-radius: 8px; padding: 14px 18px; margin-bottom: 14px; }
+  .acct-type-name { font-weight: 600; color: #e8ecf4; font-size: 0.95rem; margin-bottom: 6px; }
+  .acct-type-desc { color: #8a94b0; font-size: 0.82rem; margin-bottom: 10px; }
+  .tax-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
+  .tax-col { background: #0d1220; border-radius: 6px; padding: 10px 12px; }
+  .tax-col-head { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 8px; }
+  .tax-col-us  .tax-col-head { color: #6b91cc; }
+  .tax-col-aus .tax-col-head { color: #e4c76b; }
+  .tax-row { display: flex; justify-content: space-between; font-size: 0.78rem; color: #8a94b0; margin-bottom: 4px; gap: 8px; }
+  .tax-row strong { color: #b8c0d4; font-weight: 500; white-space: nowrap; }
+  .tax-row span { text-align: right; }
+  .note-block { background: rgba(228,199,107,0.06); border-left: 3px solid #e4c76b; padding: 8px 12px; border-radius: 0 6px 6px 0; margin-top: 10px; font-size: 0.78rem; color: #8a94b0; }
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
@@ -140,6 +152,96 @@
 <div class="field">
   <div class="field-name">Value at Move Date</div>
   <div class="field-desc">Computed automatically — you do not enter this. When the projection reaches your Australia move year, the model records the account balance at that point as the FMV on residency date. This value is used for Australian deemed-acquisition CGT rules (brokerage) and as context for foreign-income tax treaty calculations (401k / IRA). Super accounts do not require this as they are already Australian assets.</div>
+</div>
+
+<h2>📊 Account Tax Treatment Detail</h2>
+
+<p>Each account type carries its own tax rules. The model applies these automatically — this section explains exactly what happens in the projection for each event type and each country.</p>
+
+<div class="acct-type">
+  <div class="acct-type-name">401(k) — Pre-Tax Employer Plan <span class="tag tag-us">US only</span></div>
+  <div class="acct-type-desc">Traditional employer-sponsored retirement plan. Contributions are made pre-tax (reducing current taxable income). All growth is tax-deferred. The penalty-free withdrawal age is 59½.</div>
+  <div class="tax-grid">
+    <div class="tax-col tax-col-us">
+      <div class="tax-col-head">US Tax Treatment</div>
+      <div class="tax-row"><strong>Contributions</strong><span>Not taxed (pre-tax deferral)</span></div>
+      <div class="tax-row"><strong>Growth</strong><span>Tax-deferred (not taxed until withdrawal)</span></div>
+      <div class="tax-row"><strong>Withdrawal ≥ 59½</strong><span>100% ordinary income, no penalty</span></div>
+      <div class="tax-row"><strong>Withdrawal &lt; 59½</strong><span>100% ordinary income + 10% IRS penalty</span></div>
+    </div>
+    <div class="tax-col tax-col-aus">
+      <div class="tax-col-head">AU Tax Treatment (post-move)</div>
+      <div class="tax-row"><strong>Contributions</strong><span>No AU event</span></div>
+      <div class="tax-row"><strong>Growth</strong><span>No AU event (tax-deferred)</span></div>
+      <div class="tax-row"><strong>Withdrawals</strong><span>100% taxable as foreign income at ordinary AU rates</span></div>
+      <div class="tax-row"><strong>Penalty</strong><span>10% penalty is a US IRS mechanism only — no AU equivalent</span></div>
+    </div>
+  </div>
+  <div class="note-block">The US–Australia tax treaty (Article 18) may exempt 401(k) distributions from AU tax, but this is not yet modelled. The current treatment is conservative — it assumes full AU taxability. FITO (Foreign Income Tax Offset) partially corrects for double taxation by crediting US income tax already paid against the AU liability.</div>
+</div>
+
+<div class="acct-type">
+  <div class="acct-type-name">Traditional IRA — Pre-Tax Individual Account <span class="tag tag-us">US only</span></div>
+  <div class="acct-type-desc">Individual Retirement Account funded with deductible (pre-tax) contributions. Tax rules are nearly identical to a 401(k). The penalty-free withdrawal age is 59½.</div>
+  <div class="tax-grid">
+    <div class="tax-col tax-col-us">
+      <div class="tax-col-head">US Tax Treatment</div>
+      <div class="tax-row"><strong>Contributions</strong><span>Not taxed (deductible contribution assumed)</span></div>
+      <div class="tax-row"><strong>Growth</strong><span>Tax-deferred</span></div>
+      <div class="tax-row"><strong>Withdrawal ≥ 59½</strong><span>100% ordinary income, no penalty</span></div>
+      <div class="tax-row"><strong>Withdrawal &lt; 59½</strong><span>100% ordinary income + 10% IRS penalty</span></div>
+    </div>
+    <div class="tax-col tax-col-aus">
+      <div class="tax-col-head">AU Tax Treatment (post-move)</div>
+      <div class="tax-row"><strong>Contributions</strong><span>No AU event</span></div>
+      <div class="tax-row"><strong>Growth</strong><span>No AU event (tax-deferred)</span></div>
+      <div class="tax-row"><strong>Withdrawals</strong><span>100% taxable as foreign income at ordinary AU rates</span></div>
+      <div class="tax-row"><strong>Penalty</strong><span>No AU equivalent — IRS mechanism only</span></div>
+    </div>
+  </div>
+  <div class="note-block">Like the 401(k), Article 18 treaty treatment is a known limitation — full AU taxability is assumed as the conservative case. FITO applies.</div>
+</div>
+
+<div class="acct-type">
+  <div class="acct-type-name">Roth IRA — After-Tax Individual Account <span class="tag tag-us">US only</span></div>
+  <div class="acct-type-desc">Funded with after-tax dollars. Qualified withdrawals (age 59½+) are entirely tax-free under US law. The Contributions to Date (corpus) field is essential for accurate early-withdrawal modelling — it tracks the after-tax dollars you have put in, separate from investment gains.</div>
+  <div class="tax-grid">
+    <div class="tax-col tax-col-us">
+      <div class="tax-col-head">US Tax Treatment</div>
+      <div class="tax-row"><strong>Contributions</strong><span>After-tax (already included in taxable income)</span></div>
+      <div class="tax-row"><strong>Growth</strong><span>Tax-free</span></div>
+      <div class="tax-row"><strong>Withdrawal ≥ 59½</strong><span>Entirely tax-free, no penalty</span></div>
+      <div class="tax-row"><strong>Early — contributions</strong><span>Always tax-free and penalty-free (basis recovery)</span></div>
+      <div class="tax-row"><strong>Early — gains only</strong><span>10% penalty on the gains portion; gains are NOT added to ordinary income</span></div>
+    </div>
+    <div class="tax-col tax-col-aus">
+      <div class="tax-col-head">AU Tax Treatment (post-move)</div>
+      <div class="tax-row"><strong>Contributions</strong><span>No AU event (after-tax corpus already taxed)</span></div>
+      <div class="tax-row"><strong>Growth</strong><span>No AU event</span></div>
+      <div class="tax-row"><strong>Withdrawal — corpus portion</strong><span>Tax-free (not a new income event in AU)</span></div>
+      <div class="tax-row"><strong>Withdrawal — gains portion</strong><span>Taxable as foreign income at ordinary AU rates</span></div>
+    </div>
+  </div>
+  <div class="note-block">Australia has no equivalent of the Roth IRA. The model splits each Roth withdrawal into corpus (contributions) and gains using the ratio of your current contributions balance to account balance. The corpus fraction is treated as a return of after-tax capital (not new income in AU). Only the gains fraction is assessed as foreign income for AU tax purposes. The US early-withdrawal 10% penalty is calculated on the gains fraction only and does not affect AU treatment.</div>
+</div>
+
+<div class="acct-type">
+  <div class="acct-type-name">Australian Superannuation — Compulsory Super Fund <span class="tag tag-aus">AUS only</span></div>
+  <div class="acct-type-desc">Australia's national compulsory retirement savings system. Employer contributions (Superannuation Guarantee, currently 11.5%) and voluntary concessional contributions are taxed at a flat 15% within the fund. Earnings are also taxed at 15% during accumulation. Tax-free access begins at age 60 once you meet a condition of release.</div>
+  <div class="tax-grid">
+    <div class="tax-col tax-col-aus">
+      <div class="tax-col-head">AU Tax Treatment (in-fund)</div>
+      <div class="tax-row"><strong>Concessional contributions</strong><span>15% contributions tax withheld in fund</span></div>
+      <div class="tax-row"><strong>Earnings / growth</strong><span>15% earnings tax within the fund</span></div>
+      <div class="tax-row"><strong>Withdrawal ≥ 60</strong><span>Tax-free (condition of release met)</span></div>
+      <div class="tax-row"><strong>Withdrawal &lt; 60</strong><span>20% simplified tax rate applied (plus Medicare — not yet modelled separately)</span></div>
+    </div>
+    <div class="tax-col tax-col-us">
+      <div class="tax-col-head">US Tax Treatment</div>
+      <div class="tax-row"><strong>All events</strong><span>Not modelled — returns zero to avoid double-counting</span></div>
+    </div>
+  </div>
+  <div class="note-block"><strong>Known limitation:</strong> US tax treatment of Australian Super is highly complex. The IRS treats Super as a foreign grantor trust, which can trigger FBAR, Form 8938, and Form 3520 reporting obligations and may make Super earnings taxable in the US annually — not just on withdrawal. This model does not attempt to model the US side of Super. If you are a US citizen with Australian Super, consult a cross-border tax specialist familiar with both IRS and ATO requirements before making decisions based on this projection.</div>
 </div>
 
 <h2>🏠 Properties</h2>

@@ -75,24 +75,30 @@ export class RetirementAccount extends BaseAccount {
   /**
    * US federal tax treatment for a given account event.
    * Subclasses override to provide type-specific rules.
+   *
    * @param {string} eventType - 'contribution' | 'growth' | 'withdrawal'
-   * @param {number} amount
-   * @param {Object} context - { age, year, moveValueBasis, contributions, balance }
-   * @returns {{ taxableAmount: number, note: string }}
+   * @param {number} amount    - Actual withdrawal/contribution amount
+   * @param {Object} context   - { age, year, moveValueBasis, contributions, balance }
+   * @returns {{ taxableIncome: number, penaltyAmount: number, note: string }}
+   *   taxableIncome  — portion that feeds into the ordinary income tax calculation
+   *   penaltyAmount  — flat early-withdrawal penalty (10% IRS; separate from income tax)
    */
   getUSAccountTreatment(eventType, amount, context = {}) {
-    return { taxableAmount: amount, note: '' };
+    return { taxableIncome: amount, penaltyAmount: 0, note: '' };
   }
 
   /**
    * Australian tax treatment for a given account event.
    * Subclasses override to provide type-specific rules.
+   *
    * @param {string} eventType - 'contribution' | 'growth' | 'withdrawal'
-   * @param {number} amount
-   * @param {Object} context - { age, year, moveValueBasis, contributions, balance }
-   * @returns {{ taxableAmount: number, note: string }}
+   * @param {number} amount    - Actual withdrawal/contribution amount
+   * @param {Object} context   - { age, year, moveValueBasis, contributions, balance }
+   * @returns {{ taxableIncome: number, penaltyAmount: number, note: string }}
+   *   taxableIncome  — portion subject to AU income tax
+   *   penaltyAmount  — always 0 for AU (no IRS-equivalent penalty in Australian tax law)
    */
   getAUAccountTreatment(eventType, amount, context = {}) {
-    return { taxableAmount: amount, note: '' };
+    return { taxableIncome: amount, penaltyAmount: 0, note: '' };
   }
 }

@@ -50,23 +50,28 @@ export class SuperAccount extends RetirementAccount {
   // ── US tax treatment ───────────────────────────────────────────────────────
 
   getUSAccountTreatment(eventType, amount, context = {}) {
-    // Super is treated as a foreign grantor trust for US citizens but detailed
+    // Australian Super is treated as a foreign grantor trust for US citizens but detailed
     // modelling is out of scope (known limitation). Return zero to avoid double-counting.
-    return { taxableAmount: 0, note: 'Australian Super — US tax treatment not modelled (known limitation)' };
+    return { taxableIncome: 0, penaltyAmount: 0, note: 'Australian Super — US tax treatment not modelled (known limitation)' };
   }
 
   // ── AU tax treatment ───────────────────────────────────────────────────────
 
   getAUAccountTreatment(eventType, amount, context = {}) {
     const age = context.age || 60;
+
     if (eventType === 'contribution')
-      return { taxableAmount: amount * SuperAccount.CONTRIBUTIONS_TAX_RATE, note: '15% contributions tax in fund' };
+      return { taxableIncome: amount * SuperAccount.CONTRIBUTIONS_TAX_RATE, penaltyAmount: 0, note: '15% contributions tax in fund' };
+
     if (eventType === 'growth')
-      return { taxableAmount: amount * SuperAccount.EARNINGS_TAX_RATE, note: '15% earnings tax in accumulation phase' };
+      return { taxableIncome: amount * SuperAccount.EARNINGS_TAX_RATE, penaltyAmount: 0, note: '15% earnings tax in accumulation phase' };
+
     if (eventType === 'withdrawal') {
-      if (age >= 60) return { taxableAmount: 0,                                        note: 'Tax-free super withdrawal (age 60+)' };
-      return          { taxableAmount: amount * SuperAccount.WITHDRAWAL_TAX_UNDER_60, note: '20% tax + Medicare (under 60) — simplified' };
+      if (age >= 60)
+        return { taxableIncome: 0,                                        penaltyAmount: 0, note: 'Tax-free super withdrawal (age 60+)' };
+      return   { taxableIncome: amount * SuperAccount.WITHDRAWAL_TAX_UNDER_60, penaltyAmount: 0, note: '20% tax + Medicare (under 60) — simplified' };
     }
-    return { taxableAmount: amount, note: '' };
+
+    return { taxableIncome: amount, penaltyAmount: 0, note: '' };
   }
 }
