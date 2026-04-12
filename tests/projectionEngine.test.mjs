@@ -231,3 +231,71 @@ test('AU post-move: net cash flow is near zero when SS + Roth cover expenses', (
     `Actual netCashFlow = $${yr.netCashFlow.toFixed(0)}.`
   );
 });
+
+// ── Scenario: AU CGT bracket stacking must not include SS income ──────────────
+// Alice moves to Australia in 2028. She has a large brokerage account and SS
+// starting at 70. Expenses are intentionally higher than SS so brokerage is
+// drawn every year, including years when SS is active.
+//
+// SS is treaty-exempt from Australian tax (ATO treats it as foreign pension
+// exempt under the US-AU DTA). It is already correctly excluded from the AU
+// *income* tax base (projectionEngine.js ~line 487). But in the brokerage CGT
+// calculation (~line 387) `pInc.ss` was being included in `personBaseIncome`,
+// artificially stacking the capital gain into a higher AU marginal bracket.
+//
+// Test strategy: run two projections from the same base scenario — one with
+// Alice's SS ($3,000/month) and one with SS zeroed out. Find the first
+// post-move year where a brokerage withdrawal occurs and SS is active.
+// Because SS is treaty-exempt, the AU CGT should be identical in both runs.
+// With the bug the SS run produces *higher* AU CGT than the no-SS run.
+
+test('AU CGT: SS income does not inflate the brokerage CGT bracket base', () => {
+  // Scenario: Alice moves to AU in 2026 with a $2M brokerage growing at 9%/year.
+  // The balance rises above brokMVB from 2027 onward, generating post-move AU CGT.
+  //
+  // Strategy: run two projections — one with Alice's SS, one without. Find the first
+  // post-move year where:
+  //   • SS is active in the SS scenario
+  //   • A brokerage withdrawal occurs in both
+  //   • The no-SS scenario produces AU CGT of $0 (the gain is below the AU tax-free
+  //     threshold when base income = 0)
+  //
+  // In that year, the SS scenario should ALSO produce AU CGT of $0.
+  // With the bug, SS is included in the CGT bracket base, stacking the gain into a
+  // taxable bracket and producing a positive AU CGT even though the gain itself is
+  // below the threshold.
+  const baseScenario = loadScenario('au-brokerage-ss-cgt.json');
+  const noSSScenario = {
+    ...baseScenario,
+    people: baseScenario.people.map(p => ({ ...p, socialSecurityMonthly: 0 })),
+  };
+
+  const yearsWithSS = new ProjectionEngine(createMockState(baseScenario), new TaxEngine()).run();
+  const yearsNoSS   = new ProjectionEngine(createMockState(noSSScenario),  new TaxEngine()).run();
+
+  // Find a year where the no-SS gain is below threshold (noSS auTax = 0), confirming
+  // that SS alone is responsible for any non-zero auTax in the SS scenario.
+  const targetYear = yearsWithSS.find(y => {
+    const matchNoSS = yearsNoSS.find(n => n.year === y.year);
+    return y.isPostMove &&
+      y.socialSecurityTotal > 0 &&
+      y.accountWithdrawals > 0 &&
+      matchNoSS && matchNoSS.auTax === 0;  // gain below AU threshold without SS base
+  });
+
+  assert.ok(
+    targetYear !== null && targetYear !== undefined,
+    'Expected a post-move year where the gain is below the AU threshold in the no-SS run'
+  );
+
+  // SS is treaty-exempt: it must not inflate the CGT bracket base.
+  // When the gain is below the AU threshold (confirmed by noSS=0), AU CGT must be $0
+  // regardless of SS income.
+  assert.strictEqual(
+    targetYear.auTax, 0,
+    `Year ${targetYear.year}: auTax with SS ($${targetYear.auTax.toFixed(2)}) should be $0. ` +
+    `The brokerage gain is below the AU tax-free threshold without SS in the base. ` +
+    `SS income ($${targetYear.socialSecurityTotal.toFixed(0)}) is incorrectly stacking ` +
+    'the gain into a taxable bracket.'
+  );
+});

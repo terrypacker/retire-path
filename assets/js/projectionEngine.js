@@ -384,7 +384,9 @@ export class ProjectionEngine {
               const personGain = auTaxableGain * pct;
               if (personGain <= 0) return;
               const pInc = personIncome[personId] || { employment: 0, ss: 0, withdrawals: 0 };
-              const personBaseIncome = pInc.employment + pInc.ss + pInc.withdrawals;
+              // SS is treaty-exempt from AU tax — exclude it from the CGT bracket base,
+              // consistent with how it is excluded from the AU income tax base (~line 487).
+              const personBaseIncome = pInc.employment + pInc.withdrawals;
               // Convert USD amounts to AUD so AU brackets are applied correctly
               brokerageAUCGTTotalAUD += auMod.calcCapitalGainsTax(
                 personGain * fxRate,

@@ -1,0 +1,43 @@
+{
+  "_comment": "Alice (born 1955, already 71 in 2026) moves to Australia in 2026 with a $2M brokerage growing at 9%/year. Low SS ($1,500/month) and high expenses ($80K/year) mean brokerage fills a ~$60K annual gap. The 9% growth on the large balance outpaces withdrawals, so by the mid-2030s the balance is well above brokMVB and substantial AU CGT accrues. This isolates whether SS is incorrectly included in the AU CGT bracket base.",
+  "currency": "USD",
+  "fxRate": 1.58,
+  "taxBaseYear": 2025,
+  "people": [
+    {
+      "id": "person1",
+      "name": "Alice",
+      "birthYear": 1955,
+      "retirementAge": 62,
+      "lifeExpectancy": 90,
+      "socialSecurityAge": 70,
+      "socialSecurityMonthly": 1500,
+      "isCitizen": "us",
+      "annualIncome": 0
+    }
+  ],
+  "moveToAustraliaYear": 2026,
+  "moveEnabled": true,
+  "inflationUS": 3.0,
+  "inflationAUS": 3.0,
+  "accounts": [],
+  "properties": [],
+  "brokerageAccounts": [
+    {
+      "id": "brok1",
+      "name": "US Brokerage",
+      "country": "US",
+      "balance": 2000000,
+      "currency": "USD",
+      "annualContribution": 0,
+      "growthRate": 9.0,
+      "costBasis": 1000000,
+      "isJointAccount": false,
+      "ownerId": "person1"
+    }
+  ],
+  "currentAnnualExpenses": 80000,
+  "retirementExpenseRatio": 1.0,
+  "australiaExpenseRatio": 1.0,
+  "targetEndBalance": 0
+}
