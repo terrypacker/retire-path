@@ -24,6 +24,14 @@ assets/js/
   chartManager.js         ← Chart.js wrapper for all charts
   uiManager.js            ← Input binding, KPI display, table rendering, modals
   debugLogger.js          ← Development logging utility
+  assets/
+    BaseAsset.js          ← Root of hierarchy; id, name, country, currency, getDisplayLabel()
+    RealEstate.js         ← extends BaseAsset; applyAppreciation(), applyMortgageReduction(), getEquity(), isSoldThisYear(), hasActiveMortgage()
+    Land.js               ← extends BaseAsset; undeveloped land stub (not yet in state)
+    BaseAccount.js        ← extends BaseAsset; adds balance, growthRate, ownerId, type; applyGrowth()
+    RetirementAccount.js  ← extends BaseAccount; 401k/Roth/IRA/Super; getContribution(), applyContributions(), canWithdraw()
+    BrokerageAccount.js   ← extends BaseAccount; applyContributions(bal,basis), calculateWithdrawal()
+    AssetFactory.js       ← wrapRetirementAccount(), wrapBrokerageAccount(), wrapAsset() — creates class instances from POJOs
   tax/
     BaseTaxModule.js           ← Abstract base class; shared _inflateBrackets/_applyBrackets utilities
     USTaxModuleBase.js         ← Shared US logic: calcIncomeTax, calcCapitalGainsTax, accountTreatment, calcSocialSecurity
@@ -117,10 +125,11 @@ Create a new file in `assets/js/tax/` named `{Country}TaxModule{YEAR}.js` that e
 Create a `{Country}TaxModuleBase.js` extending `BaseTaxModule` with all shared country logic. Add year-specific subclasses following the same pattern as US/AU. Import all year modules in `tax/TaxEngine.js` and register them in the constructor.
 
 **Adding a new account type:**
-1. Add to `AppState` default state and helper CRUD methods
-2. Handle in `ProjectionEngine` simulation loop
-3. Add rendering in `UIManager`
-4. Add tax treatment in the relevant `TaxModule.accountTreatment()`
+1. If it needs custom logic, create a subclass of `RetirementAccount` or `BrokerageAccount` in `assets/js/assets/` and register it in `AssetFactory.wrapRetirementAccount()`
+2. Add to `AppState` default state and helper CRUD methods
+3. Handle in `ProjectionEngine` simulation loop (usually just works via base-class methods)
+4. Add rendering in `UIManager`
+5. Add tax treatment in the relevant `TaxModule.accountTreatment()`
 
 **State mutations:**
 Always go through `AppState` methods — never mutate `_state` directly from outside the class.

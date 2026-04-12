@@ -23,6 +23,8 @@
  * Reads from appState, writes projection results back.
  */
 
+import { AssetFactory } from './assets/AssetFactory.js';
+
 export class ProjectionEngine {
   constructor(state, taxes) {
     this._state = state;
@@ -38,44 +40,57 @@ export class ProjectionEngine {
     const startYear = new Date().getFullYear();
     const endYear   = this._state.getLatestLifeExpectancyYear();
 
+    // Wrap POJOs with class instances once; the engine's carry-forward maps
+    // hold the evolving balances — the instances themselves are stateless.
+    const retirementAccts = s.accounts.map(a          => AssetFactory.wrapRetirementAccount(a));
+    const brokerageAccts  = s.brokerageAccounts.map(b => AssetFactory.wrapBrokerageAccount(b));
+    const propertyAssets  = s.properties.map(p        => AssetFactory.wrapAsset(p));
+
     const years = [];
-    let accountBalances  = this._initAccountBalances(s);
-    let propertyValues   = this._initPropertyValues(s);
-    let brokerageValues  = this._initBrokerageValues(s);
+    let accountBalances = this._initAccountBalances(retirementAccts);
+    let propertyValues  = this._initPropertyValues(propertyAssets);
+    let brokerageValues = this._initBrokerageValues(brokerageAccts);
 
     for (let year = startYear; year <= endYear; year++) {
-      const yd = this._projectYear(year, s, accountBalances, propertyValues, brokerageValues);
+      const yd = this._projectYear(
+        year, s,
+        retirementAccts, brokerageAccts, propertyAssets,
+        accountBalances, propertyValues, brokerageValues
+      );
       years.push(yd);
 
       // Carry forward
-      accountBalances  = yd._nextAccountBalances;
-      propertyValues   = yd._nextPropertyValues;
-      brokerageValues  = yd._nextBrokerageValues;
+      accountBalances = yd._nextAccountBalances;
+      propertyValues  = yd._nextPropertyValues;
+      brokerageValues = yd._nextBrokerageValues;
     }
 
-    //this._state.set('projectionYears', years);
     return years;
   }
 
   // ── Initializers ─────────────────────────────────────────────────────────
-  _initAccountBalances(s) {
+
+  _initAccountBalances(retirementAccts) {
     const b = {};
-    s.accounts.forEach(a => { b[a.id] = a.balance; });
+    retirementAccts.forEach(a => { b[a.id] = a.balance; });
     return b;
   }
-  _initPropertyValues(s) {
+
+  _initPropertyValues(propertyAssets) {
     const v = {};
-    s.properties.forEach(p => { v[p.id] = { value: p.currentValue, mortgage: p.mortgageBalance }; });
+    propertyAssets.forEach(p => { v[p.id] = p.getInitialState(); });
     return v;
   }
-  _initBrokerageValues(s) {
+
+  _initBrokerageValues(brokerageAccts) {
     const v = {};
-    s.brokerageAccounts.forEach(b => { v[b.id] = { balance: b.balance, costBasis: b.costBasis || 0 }; });
+    brokerageAccts.forEach(b => { v[b.id] = { balance: b.balance, costBasis: b.costBasis || 0 }; });
     return v;
   }
 
   // ── Per-year projection ───────────────────────────────────────────────────
-  _projectYear(year, s, accBalances, propValues, brokValues) {
+
+  _projectYear(year, s, retirementAccts, brokerageAccts, propertyAssets, accBalances, propValues, brokValues) {
     const people      = s.people;
     const moveYear    = s.moveToAustraliaYear;
     const moveEnabled = s.moveEnabled;
@@ -118,11 +133,12 @@ export class ProjectionEngine {
     // Mortgage payments (property)
     let mortgageTotal = 0;
     const mortgageDetails = [];
-    s.properties.forEach(p => {
-      if (propValues[p.id] && propValues[p.id].mortgage > 0 && (!p.plannedSaleYear || year < p.plannedSaleYear)) {
-        const mAmt = (p.monthlyMortgage || 0) * 12;
+    propertyAssets.forEach(prop => {
+      const pv = propValues[prop.id];
+      if (pv && prop.hasActiveMortgage(year, pv.mortgage)) {
+        const mAmt = prop.getAnnualMortgagePayment();
         mortgageTotal += mAmt;
-        if (mAmt > 0) mortgageDetails.push({ label: `${p.name} — Mortgage`, amount: mAmt });
+        if (mAmt > 0) mortgageDetails.push({ label: `${prop.name} — Mortgage`, amount: mAmt });
       }
     });
 
@@ -158,17 +174,17 @@ export class ProjectionEngine {
     const incomeBeforeWithdrawals = employmentIncome + socialSecurityTotal;
     const expenseGap = Math.max(0, annualExpenses + mortgageTotal - incomeBeforeWithdrawals);
 
-    // ── Account growth & contributions ────────────────────────────────────────
+    // ── Retirement account growth & contributions ─────────────────────────────
     const nextAccBalances = { ...accBalances };
-    let totalAccountContributions   = 0;
-    let totalAccountWithdrawals     = 0;
-    let withdrawalGapRemaining      = expenseGap;
-    let brokerageAUCGTTotal         = 0;
-    let brokerageGainWithdrawn      = 0;
+    let totalAccountContributions  = 0;
+    let totalAccountWithdrawals    = 0;
+    let withdrawalGapRemaining     = expenseGap;
+    let brokerageAUCGTTotal        = 0;
+    let brokerageGainWithdrawn     = 0;
     const accountWithdrawalDetails  = [];
     const brokerageWithdrawalDetails = [];
 
-    s.accounts.forEach(acc => {
+    retirementAccts.forEach(acc => {
       let bal = accBalances[acc.id] || 0;
       const ownerIdx  = people.findIndex(p => p.id === acc.ownerId);
       const owner     = people[ownerIdx];
@@ -182,24 +198,21 @@ export class ProjectionEngine {
       }
 
       // Growth
-      const growthRate = (acc.growthRate || 7.0) / 100;
-      bal = bal * (1 + growthRate);
+      bal = acc.applyGrowth(bal);
 
       // Contributions (working only)
       if (!isRetired) {
-        const contrib = (acc.annualContribution || 0) + (acc.employerMatch || 0);
-        bal += contrib;
+        const contrib = acc.getContribution();
+        bal = acc.applyContributions(bal);
         totalAccountContributions += contrib;
       }
 
       // Withdrawals to cover gap
-      const canWithdraw = ownerAge >= (acc.withdrawalStartAge || 59.5);
-      if (isRetired && canWithdraw && withdrawalGapRemaining > 0 && bal > 0) {
-        // Tax treatment
+      if (isRetired && acc.canWithdraw(ownerAge) && withdrawalGapRemaining > 0 && bal > 0) {
         const treatCtx  = { age: ownerAge, year, moveValueBasis: acc.moveValueBasis || null };
         const treatment = isPostMove
           ? this._taxes.get('AUS', year).accountTreatment(acc.type, 'withdrawal', withdrawalGapRemaining, treatCtx)
-          : this._taxes.get('US', year).accountTreatment(acc.type, 'withdrawal', withdrawalGapRemaining, treatCtx);
+          : this._taxes.get('US',  year).accountTreatment(acc.type, 'withdrawal', withdrawalGapRemaining, treatCtx);
         const withdrawal = Math.min(bal, withdrawalGapRemaining);
         bal -= withdrawal;
         withdrawalGapRemaining -= withdrawal;
@@ -207,7 +220,7 @@ export class ProjectionEngine {
         if (acc.ownerId && personIncome[acc.ownerId] !== undefined) {
           personIncome[acc.ownerId].withdrawals += withdrawal;
         }
-        accountWithdrawalDetails.push({ label: `${acc.name} (${acc.type.toUpperCase()})`, amount: withdrawal });
+        accountWithdrawalDetails.push({ label: acc.getDisplayLabel(), amount: withdrawal });
       }
 
       nextAccBalances[acc.id] = Math.max(0, bal);
@@ -216,17 +229,16 @@ export class ProjectionEngine {
     // ── Property appreciation & equity ────────────────────────────────────────
     const nextPropValues = {};
     const pendingDeposits = {}; // property sale proceeds keyed by destination account/brokerage ID
-    let totalPropertyEquity  = 0;
-    let totalPropertyValue   = 0;
-    let propertySaleIncome   = 0;
+    let totalPropertyEquity = 0;
+    let totalPropertyValue  = 0;
+    let propertySaleIncome  = 0;
     const propertySaleDetails = [];
 
-    s.properties.forEach(prop => {
-      let { value, mortgage } = propValues[prop.id] || { value: prop.currentValue, mortgage: prop.mortgageBalance };
-      const appRate = (prop.appreciationRate || 3.5) / 100;
+    propertyAssets.forEach(prop => {
+      let { value, mortgage } = propValues[prop.id] || prop.getInitialState();
 
       // Check if sold this year
-      if (prop.plannedSaleYear && year === prop.plannedSaleYear) {
+      if (prop.isSoldThisYear(year)) {
         const gain = Math.max(0, value - (prop.costBasis || value * 0.6));
         const cgt  = this._taxes.get('US', year).calcCapitalGainsTax(gain, employmentIncome, { year, holdingPeriodDays: 1000 });
         const netProceeds = value - mortgage - cgt.tax;
@@ -235,17 +247,17 @@ export class ProjectionEngine {
         nextPropValues[prop.id] = { value: 0, mortgage: 0 };
         // Route net proceeds into the chosen destination account (brokerage or retirement)
         const destId = prop.saleDestinationId ||
-          (s.brokerageAccounts.length > 0 ? s.brokerageAccounts[0].id : null) ||
-          (s.accounts.length > 0 ? s.accounts[0].id : null);
+          (brokerageAccts.length > 0   ? brokerageAccts[0].id   : null) ||
+          (retirementAccts.length > 0  ? retirementAccts[0].id  : null);
         if (destId) {
           pendingDeposits[destId] = (pendingDeposits[destId] || 0) + netProceeds;
         }
         return;
       }
 
-      value    = value * (1 + appRate);
-      mortgage = Math.max(0, mortgage - (prop.monthlyMortgage || 0) * 12 * 0.5); // rough principal reduction
-      const equity = Math.max(0, value - mortgage);
+      value    = prop.applyAppreciation(value);
+      mortgage = prop.applyMortgageReduction(mortgage);
+      const equity = prop.getEquity(value, mortgage);
       totalPropertyEquity += equity;
       totalPropertyValue  += value;
       nextPropValues[prop.id] = { value, mortgage };
@@ -255,17 +267,15 @@ export class ProjectionEngine {
     const nextBrokValues = {};
     let totalBrokerageValue = 0;
 
-    s.brokerageAccounts.forEach(brok => {
+    brokerageAccts.forEach(brok => {
       let { balance, costBasis } = brokValues[brok.id] || { balance: brok.balance, costBasis: brok.costBasis || 0 };
-      const growthRate = (brok.growthRate || 7.0) / 100;
-      const gain = balance * growthRate;
-      balance += gain;
-      costBasis += 0; // cost basis doesn't grow
+
+      // Growth
+      balance = brok.applyGrowth(balance);
 
       if (!allRetired) {
-        const contrib = brok.annualContribution || 0;
-        balance   += contrib;
-        costBasis += contrib;
+        const contrib = brok.getContribution();
+        ({ balance, costBasis } = brok.applyContributions(balance, costBasis));
         totalAccountContributions += contrib;
       }
 
@@ -273,15 +283,14 @@ export class ProjectionEngine {
       if (allRetired && withdrawalGapRemaining > 0 && balance > 0) {
         const preWithdrawalBalance   = balance;
         const preWithdrawalCostBasis = costBasis;
-        const withdrawal    = Math.min(balance, withdrawalGapRemaining);
-        const gainFraction  = preWithdrawalBalance > 0 ? (preWithdrawalBalance - preWithdrawalCostBasis) / preWithdrawalBalance : 0;
-        const gainWithdrawn = withdrawal * Math.max(0, gainFraction);
+        const { withdrawal, gainWithdrawn, newBalance, newCostBasis } =
+          brok.calculateWithdrawal(balance, costBasis, withdrawalGapRemaining);
+        balance   = newBalance;
+        costBasis = newCostBasis;
         brokerageGainWithdrawn += gainWithdrawn;
-        costBasis -= withdrawal * (1 - Math.max(0, gainFraction));
-        balance   -= withdrawal;
         withdrawalGapRemaining -= withdrawal;
         totalAccountWithdrawals += withdrawal;
-        brokerageWithdrawalDetails.push({ label: `${brok.name} (Brokerage)`, amount: withdrawal, gainWithdrawn });
+        brokerageWithdrawalDetails.push({ label: brok.getDisplayLabel(), amount: withdrawal, gainWithdrawn });
 
         // Post-move: AU CGT on gains accrued after becoming Australian resident
         if (isPostMove) {
@@ -308,12 +317,11 @@ export class ProjectionEngine {
     Object.entries(pendingDeposits).forEach(([destId, amount]) => {
       if (nextBrokValues[destId] !== undefined) {
         // Brokerage destination: add to balance and cost basis (no embedded gain on fresh cash)
-        nextBrokValues[destId].balance  += amount;
+        nextBrokValues[destId].balance   += amount;
         nextBrokValues[destId].costBasis += amount;
         totalBrokerageValue += amount;
       } else if (nextAccBalances[destId] !== undefined) {
         // Retirement account destination: add to balance
-        // totalAccountValue is computed from nextAccBalances after this, so it auto-includes this
         nextAccBalances[destId] += amount;
       }
     });
@@ -416,11 +424,11 @@ export class ProjectionEngine {
 
     // ── Per-asset balance snapshot (for account balance chart) ────────────────
     const assetBalances = {};
-    s.accounts.forEach(acc => { assetBalances[acc.id] = nextAccBalances[acc.id] || 0; });
-    s.brokerageAccounts.forEach(b => { assetBalances[b.id] = (nextBrokValues[b.id] || {}).balance || 0; });
-    s.properties.forEach(p => {
-      const pv = nextPropValues[p.id] || { value: 0, mortgage: 0 };
-      assetBalances[p.id] = Math.max(0, pv.value - pv.mortgage);
+    retirementAccts.forEach(acc => { assetBalances[acc.id] = nextAccBalances[acc.id] || 0; });
+    brokerageAccts.forEach(b => { assetBalances[b.id] = (nextBrokValues[b.id] || {}).balance || 0; });
+    propertyAssets.forEach(prop => {
+      const pv = nextPropValues[prop.id] || { value: 0, mortgage: 0 };
+      assetBalances[prop.id] = prop.getEquity(pv.value, pv.mortgage);
     });
 
     // ── Cash flow detail (for drill-down modal) ───────────────────────────────
@@ -430,9 +438,9 @@ export class ProjectionEngine {
       if (pi.employment > 0) incomeDetail.push({ label: `${p.name} — Employment`, amount: pi.employment });
       if (pi.ss > 0)         incomeDetail.push({ label: `${p.name} — Social Security`, amount: pi.ss });
     });
-    accountWithdrawalDetails.forEach(d => incomeDetail.push(d));
+    accountWithdrawalDetails.forEach(d  => incomeDetail.push(d));
     brokerageWithdrawalDetails.forEach(d => incomeDetail.push(d));
-    propertySaleDetails.forEach(d => incomeDetail.push(d));
+    propertySaleDetails.forEach(d       => incomeDetail.push(d));
 
     const outflowDetail = [];
     outflowDetail.push({ label: 'Living Expenses', amount: annualExpenses });
@@ -442,16 +450,16 @@ export class ProjectionEngine {
 
     // ── Net worth detail (for drill-down modal) ───────────────────────────────
     const netWorthDetail = [];
-    s.accounts.forEach(acc => {
+    retirementAccts.forEach(acc => {
       const bal = nextAccBalances[acc.id] || 0;
       if (bal > 0) netWorthDetail.push({
         label:   acc.name,
         amount:  bal,
         tag:     acc.type.toUpperCase(),
-        country: acc.country || 'US',
+        country: acc.country,
       });
     });
-    s.brokerageAccounts.forEach(b => {
+    brokerageAccts.forEach(b => {
       const bv = nextBrokValues[b.id] || { balance: 0, costBasis: 0 };
       if (bv.balance > 0) netWorthDetail.push({
         label:     b.name,
@@ -460,9 +468,9 @@ export class ProjectionEngine {
         costBasis: bv.costBasis || 0,
       });
     });
-    s.properties.forEach(prop => {
+    propertyAssets.forEach(prop => {
       const pv     = nextPropValues[prop.id] || { value: 0, mortgage: 0 };
-      const equity = Math.max(0, pv.value - pv.mortgage);
+      const equity = prop.getEquity(pv.value, pv.mortgage);
       if (pv.value > 0) netWorthDetail.push({
         label:        prop.name,
         amount:       equity,
@@ -506,7 +514,7 @@ export class ProjectionEngine {
       netWorth,
 
       // Milestones
-      milestones: this._getMilestones(year, s, people, retiredFlags),
+      milestones: this._getMilestones(year, s, people, retiredFlags, propertyAssets),
 
       // Cash flow detail (for drill-down modal)
       incomeDetail,
@@ -525,7 +533,7 @@ export class ProjectionEngine {
     };
   }
 
-  _getMilestones(year, s, people, retiredFlags) {
+  _getMilestones(year, s, people, retiredFlags, propertyAssets) {
     const m = [];
     people.forEach((p, i) => {
       const age = year - p.birthYear;
@@ -534,8 +542,8 @@ export class ProjectionEngine {
       if (year === p.birthYear + p.lifeExpectancy) m.push(`✝ ${p.name} passes (age ${p.lifeExpectancy})`);
     });
     if (s.moveEnabled && year === s.moveToAustraliaYear) m.push('🇦🇺 Move to Australia');
-    s.properties.forEach(prop => {
-      if (prop.plannedSaleYear && year === prop.plannedSaleYear) m.push(`🏠 ${prop.name} sold`);
+    propertyAssets.forEach(prop => {
+      if (prop.isSoldThisYear(year)) m.push(`🏠 ${prop.name} sold`);
     });
     return m;
   }
