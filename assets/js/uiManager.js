@@ -146,7 +146,7 @@ export class UIManager {
       this._bindInput(`p${idx+1}-name`,           v => { people[idx].name = v;              s.set('people', [...people]); }, person.name, false);
       this._bindInput(`p${idx+1}-birth-year`,      v => { people[idx].birthYear = +v;        s.set('people', [...people]); }, person.birthYear);
       this._bindInput(`p${idx+1}-retire-age`,      v => { people[idx].retirementAge = +v;    s.set('people', [...people]); }, person.retirementAge);
-      this._bindInput(`p${idx+1}-life-exp`,        v => { people[idx].lifeExpectancy = +v;   s.set('people', [...people]); }, person.lifeExpectancy);
+      this._bindInput(`p${idx+1}-life-exp`,        v => { people[idx].lifeExpectancy = +v; s.set('people', [...people]); document.getElementById(`p${idx+1}-life-exp-val`).textContent = `${+v}`;}, person.lifeExpectancy);
       this._bindInput(`p${idx+1}-ss-age`,          v => { people[idx].socialSecurityAge = +v; s.set('people', [...people]); }, person.socialSecurityAge);
       this._bindInput(`p${idx+1}-ss-monthly`,      v => { people[idx].socialSecurityMonthly = +v; s.set('people', [...people]); }, person.socialSecurityMonthly);
       this._bindInput(`p${idx+1}-annual-income`,   v => { people[idx].annualIncome = +v;     s.set('people', [...people]); }, person.annualIncome);
@@ -412,9 +412,6 @@ export class UIManager {
 
     if (bugBtn) bugBtn.addEventListener('click', () => {
       DebugLogger.panel.style.display = 'block';
-      //Compile the bug content
-      //const urlBase = 'https://github.com/terrypacker/retire-path/issues/new';
-      //window.open(urlBase, '_blank');
     });
   }
 
