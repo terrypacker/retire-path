@@ -859,10 +859,23 @@ body {
 }
 .btn-export-csv:hover { border-color: var(--accent-blue); color: var(--accent-blue-light); }
 
-/* Tax breakdown modal — 3-column variant */
-.cf-table-tax td:nth-child(2) { text-align: right; }
-.cf-table-tax td:nth-child(3) { text-align: left; font-size: 0.72rem; color: var(--text-muted); }
+/* Tax breakdown modal — 4-column variant (Component | Rate | Amount | Notes) */
+.cf-table-tax td:nth-child(2) { text-align: center; white-space: nowrap; }
+.cf-table-tax td:nth-child(3) { text-align: right; }
+.cf-table-tax td:nth-child(4) { text-align: left; font-size: 0.72rem; color: var(--text-muted); }
 .cf-section-row td { font-style: italic; color: var(--text-muted); font-size: 0.72rem; padding-top: 12px !important; border-top: 1px dashed var(--border); }
+.tax-rate { min-width: 7rem; }
+.tax-rate-badge {
+  display: inline-block;
+  background: rgba(74,111,165,0.18);
+  color: var(--text-secondary);
+  font-size: 0.70rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 1px 7px;
+  border-radius: 3px;
+  white-space: nowrap;
+}
 
 /* Tax detail row expansion */
 .tax-expandable { cursor: pointer; }
@@ -870,7 +883,7 @@ body {
 .tax-expand-icon { display: inline-block; width: 1em; font-size: 0.65em; opacity: 0.6; vertical-align: middle; margin-right: 2px; }
 .tax-source-row td { background: rgba(10,14,30,0.4); border-bottom: 1px solid rgba(42,49,72,0.3) !important; }
 .tax-source-label { padding-left: 2.2rem !important; color: var(--text-muted) !important; font-size: 0.75rem !important; font-style: italic; }
-.tax-source-row td:nth-child(2) { color: var(--text-secondary) !important; font-size: 0.75rem; }
+.tax-source-row td:nth-child(3) { color: var(--text-secondary) !important; font-size: 0.75rem; }
 .tax-source-summary td { border-top: 1px solid rgba(42,49,72,0.6) !important; font-style: normal !important; color: var(--text-secondary) !important; font-weight: 600; }
 .tax-source-summary .tax-source-label { color: var(--text-secondary) !important; font-style: normal; }
 

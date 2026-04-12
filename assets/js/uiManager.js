@@ -650,7 +650,8 @@ export class UIManager {
     const credits = indexedDetail.filter(d =>  d.isCredit);
 
     const _renderTaxRow = (item, amountClass = '') => {
-      const note = item.note ? `<span class="cf-note">${item.note}</span>` : '';
+      const note     = item.note ? `<span class="cf-note">${item.note}</span>` : '';
+      const rateHtml = item.rate ? `<span class="tax-rate-badge">${item.rate}</span>` : '';
       const hasSources = item.sources && item.sources.length > 0;
       const labelHtml = hasSources
         ? `<span class="tax-expand-icon">▶</span> ${item.label}`
@@ -666,6 +667,7 @@ export class UIManager {
               : `<td class="cf-amount">${fmt(src.amount)}</td>`;
             return `<tr class="tax-source-row${cls}" data-expand-parent="${item._idx}" style="display:none">
               <td class="tax-source-label">${src.label}</td>
+              <td></td>
               ${amtHtml}
               <td></td>
             </tr>`;
@@ -673,6 +675,7 @@ export class UIManager {
         : '';
       return `<tr${trAttrs}>
         <td>${labelHtml}</td>
+        <td class="tax-rate">${rateHtml}</td>
         <td class="cf-amount${amountClass}">${fmt(item.amount)}</td>
         <td class="tax-notes">${note}</td>
       </tr>${sourceRowsHtml}`;
@@ -683,34 +686,37 @@ export class UIManager {
     let creditSection = '';
     if (credits.length > 0) {
       const creditRows = credits.map(item => {
-        const note = item.note ? `<span class="cf-note">${item.note}</span>` : '';
+        const note     = item.note ? `<span class="cf-note">${item.note}</span>` : '';
+        const rateHtml = item.rate ? `<span class="tax-rate-badge">${item.rate}</span>` : '';
         return `<tr>
           <td>${item.label}</td>
+          <td class="tax-rate">${rateHtml}</td>
           <td class="cf-amount neg">−${fmt(item.amount)}</td>
           <td class="tax-notes">${note}</td>
         </tr>`;
       }).join('');
       creditSection = `
-        <tr class="cf-section-row"><td colspan="3">Credits &amp; Offsets Applied</td></tr>
+        <tr class="cf-section-row"><td colspan="4">Credits &amp; Offsets Applied</td></tr>
         ${creditRows}
       `;
     }
 
     const emptyRow = detail.length === 0
-      ? `<tr><td colspan="3" style="text-align:center;color:#8a94b0;padding:16px;">
+      ? `<tr><td colspan="4" style="text-align:center;color:#8a94b0;padding:16px;">
            ${!isUS && !yd.isPostMove ? 'No Australian tax — pre-move year' : 'No tax data for this year'}
          </td></tr>`
       : '';
 
     const totalRow = `<tr class="cf-total-row">
       <td>Net ${label} Tax</td>
+      <td></td>
       <td class="cf-amount">${fmt(total)}</td>
       <td></td>
     </tr>`;
 
     document.getElementById('cashflow-modal-body').innerHTML = `
       <table class="proj-table cf-table cf-table-tax">
-        <thead><tr><th>Component</th><th>Amount</th><th>Notes</th></tr></thead>
+        <thead><tr><th>Component</th><th>Rate</th><th>Amount</th><th>Notes</th></tr></thead>
         <tbody>${emptyRow}${chargeRows}${creditSection}${totalRow}</tbody>
       </table>
     `;

@@ -444,3 +444,137 @@ test('Forced sale high-income: CGT is ~15% of the gain (income-stacking correct)
     'Income stacking may not be applied correctly in calcCapitalGainsTax.'
   );
 });
+
+// ── Tax rate/bracket on usTaxDetail items ─────────────────────────────────────
+// Every charge item in usTaxDetail must carry a `rate` field so the modal can
+// display the tax rate alongside each component. Tests use two scenarios:
+//
+//   us-ss-income.json        → SS-only income year: Ordinary Income Tax + FICA
+//   us-forced-sale-high-income.json → forced sale year: CGT at 15% + FICA + income tax
+//
+// For each item the test verifies:
+//   • item.rate is a non-empty string
+//   • For flat-rate items (FICA, penalty) the string contains the expected literal
+//   • For computed rates (income tax, CGT) the string contains "eff." and is parseable
+
+test('US tax detail: Ordinary Income Tax carries rate with effective and marginal rate', () => {
+  const state  = createMockState(loadScenario('us-ss-income.json'));
+  const taxes  = new TaxEngine();
+  const engine = new ProjectionEngine(state, taxes);
+
+  const years  = engine.run();
+  const ssYear = findFirstSSOnlyYear(years);
+  assert.ok(ssYear !== null, 'Expected a year with SS income and no employment');
+
+  const incTax = ssYear.usTaxDetail.find(d => d.label === 'Ordinary Income Tax');
+  assert.ok(incTax !== undefined, 'Expected Ordinary Income Tax in usTaxDetail');
+  assert.ok(
+    typeof incTax.rate === 'string' && incTax.rate.length > 0,
+    `Expected Ordinary Income Tax to have a non-empty rate string, got: ${JSON.stringify(incTax.rate)}`
+  );
+  assert.ok(
+    incTax.rate.includes('eff.'),
+    `Expected rate to contain "eff.", got: "${incTax.rate}"`
+  );
+  assert.ok(
+    incTax.rate.includes('marginal'),
+    `Expected rate to contain "marginal", got: "${incTax.rate}"`
+  );
+});
+
+test('US tax detail: FICA carries flat rate "7.65%"', () => {
+  const state  = createMockState(loadScenario('us-forced-sale-high-income.json'));
+  const taxes  = new TaxEngine();
+  const engine = new ProjectionEngine(state, taxes);
+
+  const years     = engine.run();
+  const firstYear = years[0];
+
+  const ficaEntry = firstYear.usTaxDetail.find(d => d.label === 'FICA (Social Security & Medicare)');
+  assert.ok(ficaEntry !== undefined, 'Expected FICA entry in usTaxDetail');
+  assert.strictEqual(
+    ficaEntry.rate, '7.65%',
+    `Expected FICA rate to be "7.65%", got: "${ficaEntry.rate}"`
+  );
+});
+
+test('US tax detail: Capital Gains Tax carries effective rate string', () => {
+  const state  = createMockState(loadScenario('us-forced-sale-high-income.json'));
+  const taxes  = new TaxEngine();
+  const engine = new ProjectionEngine(state, taxes);
+
+  const years     = engine.run();
+  const firstYear = years[0];
+
+  const cgtEntry = firstYear.usTaxDetail.find(d => d.label === 'Capital Gains Tax (long-term)');
+  assert.ok(cgtEntry !== undefined, 'Expected CGT entry in usTaxDetail');
+  assert.ok(
+    typeof cgtEntry.rate === 'string' && cgtEntry.rate.includes('eff.'),
+    `Expected CGT rate to contain "eff.", got: "${cgtEntry.rate}"`
+  );
+  // The rate string should encode the actual effective rate (15% on $30K gain = 15%)
+  const ratePct = parseFloat(cgtEntry.rate);
+  assert.ok(
+    !isNaN(ratePct) && ratePct > 0,
+    `Expected CGT rate string to start with a positive number, got: "${cgtEntry.rate}"`
+  );
+});
+
+// ── Tax rate/bracket on auTaxDetail items (post-move) ─────────────────────────
+// After moving to Australia the AU tax detail must carry rate info on each charge.
+// Scenario: au-brokerage-ss-cgt.json — Alice moves in 2026, has SS + brokerage CGT.
+// We find the first post-move year where AU income tax AND AU CGT are both present.
+
+// au-ss-and-roth.json: Alice (SS) + Bob (Roth IRA) move to AU in 2028.
+// Bob's Roth distributions are AU-taxable income, producing AU income tax + Medicare Levy.
+test('AU tax detail: Income Tax carries effective/marginal rate string', () => {
+  const state  = createMockState(loadScenario('au-ss-and-roth.json'));
+  const taxes  = new TaxEngine();
+  const engine = new ProjectionEngine(state, taxes);
+
+  const years = engine.run();
+  const yr = years.find(y => y.isPostMove && y.auTaxDetail.some(d => d.label.includes('Income Tax') && !d.isCredit));
+  assert.ok(yr !== undefined, 'Expected a post-move year with AU income tax');
+
+  const incTax = yr.auTaxDetail.find(d => d.label.includes('Income Tax') && !d.isCredit);
+  assert.ok(
+    typeof incTax.rate === 'string' && incTax.rate.includes('eff.'),
+    `Expected AU Income Tax rate to contain "eff.", got: "${incTax.rate}"`
+  );
+  assert.ok(
+    incTax.rate.includes('marginal'),
+    `Expected AU Income Tax rate to contain "marginal", got: "${incTax.rate}"`
+  );
+});
+
+test('AU tax detail: Medicare Levy carries flat rate "2%"', () => {
+  const state  = createMockState(loadScenario('au-ss-and-roth.json'));
+  const taxes  = new TaxEngine();
+  const engine = new ProjectionEngine(state, taxes);
+
+  const years = engine.run();
+  const yr = years.find(y => y.isPostMove && y.auTaxDetail.some(d => d.label.includes('Medicare Levy (2%)')));
+  assert.ok(yr !== undefined, 'Expected a post-move year with Medicare Levy');
+
+  const levy = yr.auTaxDetail.find(d => d.label.includes('Medicare Levy (2%)'));
+  assert.strictEqual(
+    levy.rate, '2%',
+    `Expected Medicare Levy rate to be "2%", got: "${levy.rate}"`
+  );
+});
+
+test('AU tax detail: Brokerage CGT carries effective rate string', () => {
+  const state  = createMockState(loadScenario('au-brokerage-ss-cgt.json'));
+  const taxes  = new TaxEngine();
+  const engine = new ProjectionEngine(state, taxes);
+
+  const years = engine.run();
+  const yr = years.find(y => y.isPostMove && y.auTaxDetail.some(d => d.label.includes('Brokerage CGT')));
+  assert.ok(yr !== undefined, 'Expected a post-move year with AU Brokerage CGT');
+
+  const cgt = yr.auTaxDetail.find(d => d.label.includes('Brokerage CGT'));
+  assert.ok(
+    typeof cgt.rate === 'string' && cgt.rate.includes('eff.'),
+    `Expected AU Brokerage CGT rate to contain "eff.", got: "${cgt.rate}"`
+  );
+});

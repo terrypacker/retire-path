@@ -270,6 +270,7 @@ export class ProjectionEngine {
           usPenaltyDetails.push({
             label: `${acc.getDisplayLabel()} — Early Withdrawal Penalty (10%)`,
             amount: usTreatment.penaltyAmount,
+            rate: '10%',
             note: usTreatment.note,
           });
         }
@@ -575,20 +576,23 @@ export class ProjectionEngine {
           usSources.push({ label: 'Total Ordinary Income', amount: ordinaryTaxableIncome, isSummary: true });
           usSources.push({ label: 'Standard Deduction', amount: -usResult.stdDeduction, isSummary: true });
         }
+        const incomeEffective = ordinaryTaxableIncome > 0 ? usResult.incomeTax / ordinaryTaxableIncome : 0;
         usTaxDetail.push({
           label: 'Ordinary Income Tax',
           amount: usResult.incomeTax,
+          rate: `${(incomeEffective * 100).toFixed(1)}% eff. / ${(usResult.marginalRate * 100).toFixed(0)}% marginal`,
           note: `std. deduction $${Math.round(usResult.stdDeduction / 1000)}K applied`,
           sources: usSources,
         });
       }
-      if (usResult.ficaTax > 0) usTaxDetail.push({ label: 'FICA (Social Security & Medicare)', amount: usResult.ficaTax });
+      if (usResult.ficaTax > 0) usTaxDetail.push({ label: 'FICA (Social Security & Medicare)', amount: usResult.ficaTax, rate: '7.65%' });
       if (brokerageGainWithdrawn > 0) {
         const effectivePct = (usCGTResult.effectiveRate * 100).toFixed(1);
         usTaxDetail.push({
           label: 'Capital Gains Tax (long-term)',
           amount: usCGTResult.tax,
-          note: `$${Math.round(brokerageGainWithdrawn).toLocaleString()} gain realized; ${effectivePct}% effective rate`,
+          rate: `${effectivePct}% eff.`,
+          note: `$${Math.round(brokerageGainWithdrawn).toLocaleString()} gain realized`,
         });
       }
       usPenaltyDetails.forEach(d => usTaxDetail.push(d));
@@ -618,20 +622,23 @@ export class ProjectionEngine {
             if (pIncome.employment > 0) auPersonSources.push({ label: 'Employment Income', amount: pIncome.employment });
             pIncome.withdrawalSources.forEach(src => auPersonSources.push(src));
             if (auPersonSources.length > 0) auPersonSources.push({ label: 'Total AU Taxable Income', amount: pIncome.employment + pIncome.withdrawals, isSummary: true });
+            const auIncomeEffective = personAUIncomeAUD > 0 ? grossIncomeTaxAUD / personAUIncomeAUD : 0;
             auTaxDetail.push({
               label: `${p.name} — Income Tax`,
               amount: grossIncomeTaxAUD / fxRate,
+              rate: `${(auIncomeEffective * 100).toFixed(1)}% eff. / ${(auResult.marginalRate * 100).toFixed(0)}% marginal`,
               note: `A$${Math.round(grossIncomeTaxAUD).toLocaleString()} AUD`,
               sources: auPersonSources,
             });
           }
           if (auResult.lito > 0)         auTaxDetail.push({ label: `${p.name} — LITO Offset`, amount: auResult.lito / fxRate, isCredit: true, note: `A$${Math.round(auResult.lito).toLocaleString()} AUD` });
-          if (auResult.medicareLevy > 0) auTaxDetail.push({ label: `${p.name} — Medicare Levy (2%)`, amount: auResult.medicareLevy / fxRate, note: `A$${Math.round(auResult.medicareLevy).toLocaleString()} AUD` });
+          if (auResult.medicareLevy > 0) auTaxDetail.push({ label: `${p.name} — Medicare Levy (2%)`, amount: auResult.medicareLevy / fxRate, rate: '2%', note: `A$${Math.round(auResult.medicareLevy).toLocaleString()} AUD` });
           if (auResult.medicareLevySurcharge > 0) {
             const mlsRatePct = personAUIncomeAUD > 0 ? (auResult.medicareLevySurcharge / personAUIncomeAUD * 100).toFixed(2) : '';
             auTaxDetail.push({
               label: `${p.name} — Medicare Levy Surcharge (${mlsRatePct}%)`,
               amount: auResult.medicareLevySurcharge / fxRate,
+              rate: `${mlsRatePct}%`,
               note: `no private hospital cover; A$${Math.round(auResult.medicareLevySurcharge).toLocaleString()} AUD`,
             });
           }
@@ -644,7 +651,8 @@ export class ProjectionEngine {
         auTaxDetail.push({
           label: 'Brokerage CGT (post-move gains, 50% discount)',
           amount: brokerageAUCGTTotalAUD / fxRate,
-          note: `A$${Math.round(brokerageAUGainTotalAUD).toLocaleString()} gain realized; A$${Math.round(brokerageAUCGTTotalAUD).toLocaleString()} tax; ${auEffectivePct}% effective rate`,
+          rate: `${auEffectivePct}% eff.`,
+          note: `A$${Math.round(brokerageAUGainTotalAUD).toLocaleString()} gain; A$${Math.round(brokerageAUCGTTotalAUD).toLocaleString()} tax`,
         });
       }
       rothPostMoveDetails.forEach(d => auTaxDetail.push(d));
@@ -690,9 +698,11 @@ export class ProjectionEngine {
         const incResult  = auMod.calcIncomeTax(incomeAUD, { year, isResident: false });
         auNonResTaxAUD  += incResult.tax;
         if (incResult.tax > 0) {
+          const nonResIncEffective = incomeAUD > 0 ? incResult.tax / incomeAUD : 0;
           auTaxDetail.push({
             label:   'AU Income Tax (non-resident)',
             amount:  incResult.tax / fxRate,
+            rate:    `${(nonResIncEffective * 100).toFixed(1)}% eff. / ${(incResult.marginalRate * 100).toFixed(0)}% marginal`,
             note:    `A$${Math.round(incResult.tax).toLocaleString()} AUD; 32.5% from $1, no tax-free threshold`,
             sources: auNonResWithdrawalSources.map(src => ({ ...src })),
           });
@@ -711,7 +721,8 @@ export class ProjectionEngine {
           auTaxDetail.push({
             label: 'AU Brokerage CGT (non-resident, no 50% discount)',
             amount: cgtResult.tax / fxRate,
-            note:   `A$${Math.round(cgtResult.tax).toLocaleString()} AUD`,
+            rate:  `${(cgtResult.effectiveRate * 100).toFixed(1)}% eff.`,
+            note:  `A$${Math.round(cgtResult.tax).toLocaleString()} AUD`,
           });
         }
       }
@@ -722,6 +733,7 @@ export class ProjectionEngine {
         auTaxDetail.push({
           label:  'AU Interest Withholding Tax (15%)',
           amount: auSavingsWithholdingAUD / fxRate,
+          rate:   '15%',
           note:   `A$${Math.round(auSavingsWithholdingAUD).toLocaleString()} AUD; AU-US DTA Art.11`,
         });
       }
