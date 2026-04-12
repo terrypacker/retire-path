@@ -37,6 +37,13 @@ export class AustraliaTaxModule2025 extends AustraliaTaxModuleBase {
       { min: 190000,  max: Infinity,  rate: 0.45 },
     ];
 
+    // Non-resident rates: no tax-free threshold; unchanged from FY2024-25 (ATO FY2025-26)
+    this._nonResidentBrackets = [
+      { min: 0,       max: 135000,   rate: 0.325 },
+      { min: 135000,  max: 190000,   rate: 0.37 },
+      { min: 190000,  max: Infinity, rate: 0.45 },
+    ];
+
     // Medicare Levy thresholds unchanged from FY2024-25
     this._medicareLevy = { rate: 0.02, lowerThreshold: 26000, phaseInRate: 0.10 };
 

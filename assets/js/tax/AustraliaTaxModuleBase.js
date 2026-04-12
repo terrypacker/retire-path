@@ -41,6 +41,22 @@ export class AustraliaTaxModuleBase extends BaseTaxModule {
   calcIncomeTax(grossIncome, context = {}) {
     const { year = this.year, isResident = true, hasPrivateHospitalCover = false } = context;
 
+    // Non-residents: flat brackets from $1, no LITO, no Medicare Levy
+    if (!isResident) {
+      const brackets = this._inflateBrackets(this._nonResidentBrackets, this.year, year, this._inflationRate);
+      const { tax, marginalRate, breakdown } = this._applyBrackets(grossIncome, brackets);
+      return {
+        tax,
+        incomeTax: tax,
+        medicareLevy: 0,
+        medicareLevySurcharge: 0,
+        lito: 0,
+        effectiveRate: grossIncome > 0 ? tax / grossIncome : 0,
+        marginalRate,
+        breakdown,
+      };
+    }
+
     const brackets = this._inflateBrackets(this._brackets, this.year, year, this._inflationRate);
     const { tax, marginalRate, breakdown } = this._applyBrackets(grossIncome, brackets);
 
@@ -96,11 +112,13 @@ export class AustraliaTaxModuleBase extends BaseTaxModule {
   // ── Capital gains tax ─────────────────────────────────────────────────────
 
   calcCapitalGainsTax(gain, income, context = {}) {
-    // Australia: 50% CGT discount for assets held >12 months by residents
+    // Australia: 50% CGT discount for assets held >12 months — residents only
     const { year = this.year, holdingPeriodDays = 400, isResident = true } = context;
     const discount     = isResident && holdingPeriodDays >= 365 ? 0.5 : 1.0;
     const taxableGain  = gain * discount;
-    const brackets     = this._inflateBrackets(this._brackets, this.year, year, this._inflationRate);
+    const brackets     = isResident
+      ? this._inflateBrackets(this._brackets, this.year, year, this._inflationRate)
+      : this._inflateBrackets(this._nonResidentBrackets, this.year, year, this._inflationRate);
     const baseResult   = this._applyBrackets(income, brackets);
     const totalResult  = this._applyBrackets(income + taxableGain, brackets);
     const tax          = totalResult.tax - baseResult.tax;

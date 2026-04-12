@@ -51,11 +51,13 @@ export class ProjectionEngine {
     let propertyValues  = this._initPropertyValues(propertyAssets);
     let brokerageValues = this._initBrokerageValues(brokerageAccts);
 
+    let ftcCarryForward = 0;  // USD excess FTC from prior year
     for (let year = startYear; year <= endYear; year++) {
       const yd = this._projectYear(
         year, s,
         retirementAccts, brokerageAccts, propertyAssets,
-        accountBalances, propertyValues, brokerageValues
+        accountBalances, propertyValues, brokerageValues,
+        ftcCarryForward
       );
       years.push(yd);
 
@@ -63,6 +65,7 @@ export class ProjectionEngine {
       accountBalances = yd._nextAccountBalances;
       propertyValues  = yd._nextPropertyValues;
       brokerageValues = yd._nextBrokerageValues;
+      ftcCarryForward = yd._nextFtcCarryForward || 0;
     }
 
     return years;
@@ -102,7 +105,7 @@ export class ProjectionEngine {
 
   // ── Per-year projection ───────────────────────────────────────────────────
 
-  _projectYear(year, s, retirementAccts, brokerageAccts, propertyAssets, accBalances, propValues, brokValues) {
+  _projectYear(year, s, retirementAccts, brokerageAccts, propertyAssets, accBalances, propValues, brokValues, ftcCarryForward = 0) {
     const people      = s.people;
     const moveYear    = s.moveToAustraliaYear;
     const moveEnabled = s.moveEnabled;
@@ -193,13 +196,16 @@ export class ProjectionEngine {
     let usTaxableWithdrawals       = 0;   // US ordinary-income portion of withdrawals
     let usTotalPenalty             = 0;   // 10% early-withdrawal penalty (IRS, separate from income tax)
     let withdrawalGapRemaining     = expenseGap;
-    let brokerageAUCGTTotal        = 0;
+    let brokerageAUCGTTotalAUD     = 0;  // AU CGT in AUD (AU brackets applied to AUD amounts)
     let brokerageGainWithdrawn     = 0;
     const accountWithdrawalDetails   = [];
     const brokerageWithdrawalDetails = [];
     const usPenaltyDetails           = [];  // line items for US tax detail
     const rothPostMoveDetails        = [];  // AU tax notes for Roth corpus/gains breakdown
     const usTaxableWithdrawalSources = [];  // per-account US taxable withdrawal amounts (for tax detail drilldown)
+    let auNonResWithdrawalsUSD       = 0;   // AU-source account withdrawals pre-move (non-resident AU tax)
+    let auNonResGainWithdrawnUSD     = 0;   // Gains from AU-country brokerages pre-move (non-resident AU CGT)
+    const auNonResWithdrawalSources  = [];
 
     retirementAccts.forEach(acc => {
       const accData = accBalances[acc.id] || { balance: 0, contributions: 0, moveValueBasis: null };
@@ -264,6 +270,15 @@ export class ProjectionEngine {
           }
           if (auTreatment.note) {
             rothPostMoveDetails.push({ label: `${acc.getDisplayLabel()} withdrawal`, amount: withdrawal, note: auTreatment.note });
+          }
+        }
+
+        // Pre-move: AU-country accounts are taxable by Australia as non-resident source income.
+        if (!isPostMove && acc.country === 'AUS') {
+          const auTreatment = acc.getAUAccountTreatment('withdrawal', withdrawal, treatCtx);
+          if (auTreatment.taxableIncome > 0) {
+            auNonResWithdrawalsUSD += auTreatment.taxableIncome;
+            auNonResWithdrawalSources.push({ label: acc.getDisplayLabel(), amount: auTreatment.taxableIncome });
           }
         }
 
@@ -354,7 +369,9 @@ export class ProjectionEngine {
 
         // Post-move: AU CGT on gains accrued after becoming Australian resident.
         // Split gain by ownership and compute each owner's CGT at their own marginal rate.
+        // Gains are converted to AUD before applying AU brackets; result accumulates in AUD.
         if (isPostMove) {
+          const fxRate = s.fxRate || 1.58;
           const auMod = this._taxes.get('AUS', year);
           const { auTaxableGain } = auMod.calcBrokerageAUGain(
             withdrawal, preWithdrawalBalance, brokMVB, preWithdrawalCostBasis
@@ -366,13 +383,19 @@ export class ProjectionEngine {
               if (personGain <= 0) return;
               const pInc = personIncome[personId] || { employment: 0, ss: 0, withdrawals: 0 };
               const personBaseIncome = pInc.employment + pInc.ss + pInc.withdrawals;
-              brokerageAUCGTTotal += auMod.calcCapitalGainsTax(
-                personGain,
-                personBaseIncome,
+              // Convert USD amounts to AUD so AU brackets are applied correctly
+              brokerageAUCGTTotalAUD += auMod.calcCapitalGainsTax(
+                personGain * fxRate,
+                personBaseIncome * fxRate,
                 { year, holdingPeriodDays: 400, isResident: true }
               ).tax;
             });
           }
+        }
+
+        // Pre-move: AU-country brokerage gains are AU-source income taxable by Australia as non-resident.
+        if (!isPostMove && brok.country === 'AUS' && gainWithdrawn > 0) {
+          auNonResGainWithdrawnUSD += gainWithdrawn;
         }
       }
 
@@ -398,34 +421,37 @@ export class ProjectionEngine {
     const totalIncome = employmentIncome + socialSecurityTotal + usTaxableWithdrawals + propertySaleIncome;
     let usTax = 0;
     let auTax = 0;
+    const fxRate = s.fxRate || 1.58;  // 1 USD = fxRate AUD
     const usTaxDetail = [];
     const auTaxDetail = [];
 
     // US tax always applies — US citizens are taxed on worldwide income.
     // Brokerage long-term gains are taxed at preferential rates (0/15/20%), not ordinary rates.
+    // For post-move years this is the GROSS US liability; Foreign Tax Credit is applied below.
     let usCGTResult = { tax: 0 };
+    let grossUSTax = 0;
     if (totalIncome > 0) {
       const ordinaryIncome = totalIncome - brokerageGainWithdrawn;
       const usResult = this._taxes.get('US', year).calcIncomeTax(ordinaryIncome, {
         year, filingStatus: 'mfj', isRetired: allRetired,
       });
-      usTax = usResult.tax;
+      grossUSTax = usResult.tax;
       if (brokerageGainWithdrawn > 0) {
         usCGTResult = this._taxes.get('US', year).calcCapitalGainsTax(
           brokerageGainWithdrawn, ordinaryIncome,
           { year, holdingPeriodDays: 400, isResident: true }
         );
-        usTax += usCGTResult.tax;
+        grossUSTax += usCGTResult.tax;
       }
-      // Build US tax detail
-      if (usTotalPenalty > 0) usTax += usTotalPenalty;
+      if (usTotalPenalty > 0) grossUSTax += usTotalPenalty;
+      // Build US tax detail (gross amounts before FTC)
       if (usResult.incomeTax > 0) {
         const usSources = [];
         people.forEach(p => {
           if (personIncome[p.id].employment > 0) usSources.push({ label: `${p.name} — Employment Income`, amount: personIncome[p.id].employment });
           if (personIncome[p.id].ss > 0)         usSources.push({ label: `${p.name} — Social Security`, amount: personIncome[p.id].ss });
         });
-        usTaxableWithdrawalSources.forEach(s => usSources.push(s));
+        usTaxableWithdrawalSources.forEach(src => usSources.push(src));
         if (propertySaleIncome > 0) usSources.push({ label: 'Property Sale Proceeds', amount: propertySaleIncome });
         if (usSources.length > 0) {
           usSources.push({ label: 'Total Ordinary Income', amount: ordinaryIncome, isSummary: true });
@@ -443,70 +469,149 @@ export class ProjectionEngine {
       usPenaltyDetails.forEach(d => usTaxDetail.push(d));
     }
 
-    // Post-move: AU income tax assessed per person (Australia taxes individuals separately).
-    // Each person's AU taxable income = their employment income + their account withdrawals.
-    // (US Social Security has treaty/FITO treatment; kept out of AU base for simplicity.)
-    // FITO (Foreign Income Tax Offset): AU liability reduced by US tax already paid, simplified 1:1.
-    // Note: AU module expects AUD; amounts here are USD. The FITO offset partially corrects for this.
+    // Post-move: Australia taxes as country of residence on worldwide income.
+    // Income is converted to AUD (× fxRate) before applying AU brackets; results are in AUD.
+    // US then provides a Foreign Tax Credit (FTC) for the AU tax paid (converted back to USD).
+    // Excess FTC (AU tax > US liability) carries forward to offset future US tax.
+    // (US Social Security: treaty-exempt from AU; kept out of AU taxable base for simplicity.)
+    let newFtcCarryForward = 0;
     if (isPostMove) {
       const auMod = this._taxes.get('AUS', year);
-      let auIncomeTaxTotal = 0;
+      let auIncomeTaxTotalAUD = 0;
       people.forEach(p => {
         if (year > p.birthYear + p.lifeExpectancy) return;
         const pIncome = personIncome[p.id];
-        const personAUIncome = pIncome.employment + pIncome.withdrawals;
-        if (personAUIncome > 0) {
-          const auResult = auMod.calcIncomeTax(personAUIncome, { year, isResident: true });
-          auIncomeTaxTotal += auResult.tax;
-          // Per-person AU tax detail (show gross income tax then LITO as a credit)
-          const grossIncomeTax = auResult.incomeTax + auResult.lito;
-          if (grossIncomeTax > 0) {
+        // Convert USD income to AUD for AU bracket calculation
+        const personAUIncomeAUD = (pIncome.employment + pIncome.withdrawals) * fxRate;
+        if (personAUIncomeAUD > 0) {
+          const auResult = auMod.calcIncomeTax(personAUIncomeAUD, { year, isResident: true });
+          auIncomeTaxTotalAUD += auResult.tax;
+          // Per-person AU tax detail — amounts displayed as USD equivalent, AUD shown in notes
+          const grossIncomeTaxAUD = auResult.incomeTax + auResult.lito;
+          if (grossIncomeTaxAUD > 0) {
             const auPersonSources = [];
             if (pIncome.employment > 0) auPersonSources.push({ label: 'Employment Income', amount: pIncome.employment });
-            pIncome.withdrawalSources.forEach(s => auPersonSources.push(s));
-            if (auPersonSources.length > 0) auPersonSources.push({ label: 'Total AU Taxable Income', amount: personAUIncome, isSummary: true });
-            auTaxDetail.push({ label: `${p.name} — Income Tax`, amount: grossIncomeTax, sources: auPersonSources });
+            pIncome.withdrawalSources.forEach(src => auPersonSources.push(src));
+            if (auPersonSources.length > 0) auPersonSources.push({ label: 'Total AU Taxable Income', amount: pIncome.employment + pIncome.withdrawals, isSummary: true });
+            auTaxDetail.push({
+              label: `${p.name} — Income Tax`,
+              amount: grossIncomeTaxAUD / fxRate,
+              note: `A$${Math.round(grossIncomeTaxAUD).toLocaleString()} AUD`,
+              sources: auPersonSources,
+            });
           }
-          if (auResult.lito > 0)         auTaxDetail.push({ label: `${p.name} — LITO Offset`, amount: auResult.lito, isCredit: true });
-          if (auResult.medicareLevy > 0) auTaxDetail.push({ label: `${p.name} — Medicare Levy (2%)`, amount: auResult.medicareLevy });
+          if (auResult.lito > 0)         auTaxDetail.push({ label: `${p.name} — LITO Offset`, amount: auResult.lito / fxRate, isCredit: true, note: `A$${Math.round(auResult.lito).toLocaleString()} AUD` });
+          if (auResult.medicareLevy > 0) auTaxDetail.push({ label: `${p.name} — Medicare Levy (2%)`, amount: auResult.medicareLevy / fxRate, note: `A$${Math.round(auResult.medicareLevy).toLocaleString()} AUD` });
           if (auResult.medicareLevySurcharge > 0) {
-            const mlsRatePct = personAUIncome > 0 ? (auResult.medicareLevySurcharge / personAUIncome * 100).toFixed(2) : '';
+            const mlsRatePct = personAUIncomeAUD > 0 ? (auResult.medicareLevySurcharge / personAUIncomeAUD * 100).toFixed(2) : '';
             auTaxDetail.push({
               label: `${p.name} — Medicare Levy Surcharge (${mlsRatePct}%)`,
-              amount: auResult.medicareLevySurcharge,
-              note: 'no private hospital cover',
+              amount: auResult.medicareLevySurcharge / fxRate,
+              note: `no private hospital cover; A$${Math.round(auResult.medicareLevySurcharge).toLocaleString()} AUD`,
             });
           }
         }
       });
-      if (brokerageAUCGTTotal > 0) auTaxDetail.push({
+      if (brokerageAUCGTTotalAUD > 0) auTaxDetail.push({
         label: 'Brokerage CGT (post-move gains, 50% discount)',
-        amount: brokerageAUCGTTotal,
+        amount: brokerageAUCGTTotalAUD / fxRate,
+        note: `A$${Math.round(brokerageAUCGTTotalAUD).toLocaleString()} AUD`,
       });
       rothPostMoveDetails.forEach(d => auTaxDetail.push(d));
-      // Apportion the US tax already estimated against the AU-taxable income fraction.
-      // Use actual AU-taxable withdrawal amounts (not raw withdrawals) for the FITO ratio.
-      const auTaxableWithdrawals = Object.values(personIncome).reduce((s, pi) => s + pi.withdrawals, 0);
-      const auTaxableTotal = employmentIncome + auTaxableWithdrawals;
-      const usTaxOnAUIncome = totalIncome > 0
-        ? usTax * (auTaxableTotal / totalIncome)
-        : 0;
-      const auNetIncomeTax = Math.max(0, auIncomeTaxTotal - usTaxOnAUIncome);
-      // Treaty credit for CGT: AU CGT reduced by US CGT already paid on the same gains.
-      const auNetCGT = Math.max(0, brokerageAUCGTTotal - usCGTResult.tax);
-      auTax = auNetIncomeTax + auNetCGT;
-      if (usTaxOnAUIncome > 0) auTaxDetail.push({
-        label: 'FITO Credit (US tax offset)',
-        amount: usTaxOnAUIncome,
-        isCredit: true,
-        note: 'US tax paid on AU-source income',
-      });
-      if (usCGTResult.tax > 0 && brokerageAUCGTTotal > 0) auTaxDetail.push({
-        label: 'Treaty CGT Credit (US CGT offset)',
-        amount: Math.min(usCGTResult.tax, brokerageAUCGTTotal),
-        isCredit: true,
-        note: 'US CGT already paid on same gains',
-      });
+
+      // Total AU tax paid (AUD) → USD equivalent is the full AU liability
+      const auTotalTaxAUD = auIncomeTaxTotalAUD + brokerageAUCGTTotalAUD;
+      auTax = auTotalTaxAUD / fxRate;
+
+      // Foreign Tax Credit: AU taxes paid (USD equiv.) + prior-year carry-forward offset US liability.
+      const ftcAvailable = auTax + ftcCarryForward;
+      const ftcApplied   = Math.min(ftcAvailable, grossUSTax);
+      usTax = Math.max(0, grossUSTax - ftcApplied);
+      newFtcCarryForward = Math.max(0, ftcAvailable - grossUSTax);
+
+      // Show FTC credit in US tax detail
+      if (ftcApplied > 0) {
+        const ftcNote = `A$${Math.round(auTotalTaxAUD).toLocaleString()} AUD tax paid to Australia`
+          + (ftcCarryForward > 0 ? ` + $${Math.round(ftcCarryForward).toLocaleString()} prior-year carry-forward` : '');
+        usTaxDetail.push({
+          label: 'Foreign Tax Credit (AU taxes paid)',
+          amount: ftcApplied,
+          isCredit: true,
+          note: ftcNote,
+        });
+      }
+      if (newFtcCarryForward > 0) {
+        usTaxDetail.push({
+          label: 'FTC Carry-Forward to Next Year',
+          amount: newFtcCarryForward,
+          note: 'AU tax exceeds US liability; credited against future US tax',
+        });
+      }
+    } else if (auNonResGainWithdrawnUSD > 0 || auNonResWithdrawalsUSD > 0) {
+      // Pre-move: Australia taxes non-residents on AU-source income (no tax-free threshold, no LITO,
+      // no Medicare Levy, no 50% CGT discount). US provides FTC for the AU non-resident tax paid.
+      const auMod = this._taxes.get('AUS', year);
+      let auNonResTaxAUD = 0;
+
+      // Non-resident income tax on AU-source account withdrawals
+      if (auNonResWithdrawalsUSD > 0) {
+        const incomeAUD  = auNonResWithdrawalsUSD * fxRate;
+        const incResult  = auMod.calcIncomeTax(incomeAUD, { year, isResident: false });
+        auNonResTaxAUD  += incResult.tax;
+        if (incResult.tax > 0) {
+          auTaxDetail.push({
+            label:   'AU Income Tax (non-resident)',
+            amount:  incResult.tax / fxRate,
+            note:    `A$${Math.round(incResult.tax).toLocaleString()} AUD; 32.5% from $1, no tax-free threshold`,
+            sources: auNonResWithdrawalSources.map(src => ({ ...src })),
+          });
+        }
+      }
+
+      // Non-resident CGT on AU-country brokerage gains (no 50% discount)
+      if (auNonResGainWithdrawnUSD > 0) {
+        const gainAUD    = auNonResGainWithdrawnUSD * fxRate;
+        const baseIncAUD = auNonResWithdrawalsUSD * fxRate;
+        const cgtResult  = auMod.calcCapitalGainsTax(gainAUD, baseIncAUD, {
+          year, holdingPeriodDays: 400, isResident: false,
+        });
+        auNonResTaxAUD += cgtResult.tax;
+        if (cgtResult.tax > 0) {
+          auTaxDetail.push({
+            label: 'AU Brokerage CGT (non-resident, no 50% discount)',
+            amount: cgtResult.tax / fxRate,
+            note:   `A$${Math.round(cgtResult.tax).toLocaleString()} AUD`,
+          });
+        }
+      }
+
+      auTax = auNonResTaxAUD / fxRate;
+
+      // FTC: AU non-resident tax offsets US liability; excess carries forward
+      const ftcAvailable = auTax + ftcCarryForward;
+      const ftcApplied   = Math.min(ftcAvailable, grossUSTax);
+      usTax = Math.max(0, grossUSTax - ftcApplied);
+      newFtcCarryForward = Math.max(0, ftcAvailable - grossUSTax);
+
+      if (ftcApplied > 0) {
+        const ftcNote = `A$${Math.round(auNonResTaxAUD).toLocaleString()} AUD non-resident tax paid to Australia`
+          + (ftcCarryForward > 0 ? ` + $${Math.round(ftcCarryForward).toLocaleString()} prior-year carry-forward` : '');
+        usTaxDetail.push({
+          label:    'Foreign Tax Credit (AU non-resident tax)',
+          amount:   ftcApplied,
+          isCredit: true,
+          note:     ftcNote,
+        });
+      }
+      if (newFtcCarryForward > 0) {
+        usTaxDetail.push({
+          label: 'FTC Carry-Forward to Next Year',
+          amount: newFtcCarryForward,
+          note:   'AU non-resident tax exceeds US liability; credited against future US tax',
+        });
+      }
+    } else {
+      usTax = grossUSTax;
     }
 
     const estimatedTax = usTax + auTax;
@@ -623,6 +728,7 @@ export class ProjectionEngine {
       _nextAccountBalances: nextAccBalances,
       _nextPropertyValues:  nextPropValues,
       _nextBrokerageValues: nextBrokValues,
+      _nextFtcCarryForward: newFtcCarryForward,
     };
   }
 
@@ -657,6 +763,7 @@ export class ProjectionEngine {
       _nextAccountBalances: accBalances,
       _nextPropertyValues:  propValues,
       _nextBrokerageValues: brokValues,
+      _nextFtcCarryForward: 0,
     };
   }
 }

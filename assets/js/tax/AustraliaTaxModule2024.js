@@ -36,6 +36,13 @@ export class AustraliaTaxModule2024 extends AustraliaTaxModuleBase {
       { min: 180000,  max: Infinity,  rate: 0.45 },
     ];
 
+    // Non-resident rates: no tax-free threshold (ATO FY2024-25)
+    this._nonResidentBrackets = [
+      { min: 0,       max: 135000,   rate: 0.325 },
+      { min: 135000,  max: 190000,   rate: 0.37 },
+      { min: 190000,  max: Infinity, rate: 0.45 },
+    ];
+
     // Medicare Levy: 2% with phase-in for low incomes (ATO FY2024-25)
     this._medicareLevy = { rate: 0.02, lowerThreshold: 26000, phaseInRate: 0.10 };
 
