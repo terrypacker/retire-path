@@ -1,0 +1,54 @@
+{
+  "_comment": "Pre-retirement person with $200K employment income and expenses ($250K) that far exceed income plus savings available above the minimum floor ($5K). The brokerage is forced to sell ~$45K to cover the deficit. With $200K income, the ordinary income after standard deduction (~$169K) already exceeds the 0% LTCG threshold (~$99K), so the entire brokerage gain is taxed at 15%. Tests that: (1) forced sale CGT appears in usTaxDetail as 'Capital Gains Tax (long-term)', and (2) usTax correctly includes the 15% CGT component.",
+  "currency": "USD",
+  "fxRate": 1.58,
+  "taxBaseYear": 2025,
+  "people": [
+    {
+      "id": "person1",
+      "name": "Alice",
+      "birthYear": 1985,
+      "retirementAge": 65,
+      "lifeExpectancy": 90,
+      "socialSecurityAge": 70,
+      "socialSecurityMonthly": 0,
+      "isCitizen": "us",
+      "annualIncome": 200000
+    }
+  ],
+  "moveToAustraliaYear": 2060,
+  "moveEnabled": false,
+  "inflationUS": 0,
+  "inflationAUS": 0,
+  "accounts": [],
+  "properties": [],
+  "brokerageAccounts": [
+    {
+      "id": "brok1",
+      "name": "US Brokerage",
+      "country": "US",
+      "balance": 300000,
+      "currency": "USD",
+      "annualContribution": 0,
+      "growthRate": 0,
+      "costBasis": 100000,
+      "isJointAccount": false,
+      "ownerId": "person1",
+      "priority": 1
+    }
+  ],
+  "savingsAccounts": [
+    {
+      "id": "sav1",
+      "name": "Emergency Fund",
+      "balance": 30000,
+      "growthRate": 0,
+      "minimumBalance": 25000,
+      "priority": 1
+    }
+  ],
+  "currentAnnualExpenses": 250000,
+  "retirementExpenseRatio": 1.0,
+  "australiaExpenseRatio": 1.0,
+  "targetEndBalance": 0
+}

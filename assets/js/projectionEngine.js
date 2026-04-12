@@ -206,6 +206,7 @@ export class ProjectionEngine {
     let usTotalPenalty             = 0;   // 10% early-withdrawal penalty (IRS, separate from income tax)
     let withdrawalGapRemaining     = expenseGap;
     let brokerageAUCGTTotalAUD     = 0;  // AU CGT in AUD (AU brackets applied to AUD amounts)
+    let brokerageAUGainTotalAUD    = 0;  // Total raw AU-taxable brokerage gain in AUD (pre-50%-discount)
     let brokerageGainWithdrawn     = 0;
     const accountWithdrawalDetails   = [];
     const brokerageWithdrawalDetails = [];
@@ -483,6 +484,7 @@ export class ProjectionEngine {
             withdrawal, preWithdrawalBalance, brokMVB, preWithdrawalCostBasis
           );
           if (auTaxableGain > 0) {
+            brokerageAUGainTotalAUD += auTaxableGain * fxRate;
             const ownerShares = brok.getOwnershipShares(people);
             ownerShares.forEach(({ personId, pct }) => {
               const personGain = auTaxableGain * pct;
@@ -544,7 +546,7 @@ export class ProjectionEngine {
     // US tax always applies — US citizens are taxed on worldwide income.
     // Brokerage long-term gains are taxed at preferential rates (0/15/20%), not ordinary rates.
     // For post-move years this is the GROSS US liability; Foreign Tax Credit is applied below.
-    let usCGTResult = { tax: 0 };
+    let usCGTResult = { tax: 0, effectiveRate: 0 };
     let grossUSTax = 0;
     if (ordinaryTaxableIncome > 0 || brokerageGainWithdrawn > 0) {
       const usResult = this._taxes.get('US', year).calcIncomeTax(ordinaryTaxableIncome, {
@@ -581,7 +583,14 @@ export class ProjectionEngine {
         });
       }
       if (usResult.ficaTax > 0) usTaxDetail.push({ label: 'FICA (Social Security & Medicare)', amount: usResult.ficaTax });
-      if (usCGTResult.tax > 0) usTaxDetail.push({ label: 'Capital Gains Tax (long-term)', amount: usCGTResult.tax });
+      if (brokerageGainWithdrawn > 0) {
+        const effectivePct = (usCGTResult.effectiveRate * 100).toFixed(1);
+        usTaxDetail.push({
+          label: 'Capital Gains Tax (long-term)',
+          amount: usCGTResult.tax,
+          note: `$${Math.round(brokerageGainWithdrawn).toLocaleString()} gain realized; ${effectivePct}% effective rate`,
+        });
+      }
       usPenaltyDetails.forEach(d => usTaxDetail.push(d));
     }
 
@@ -628,11 +637,16 @@ export class ProjectionEngine {
           }
         }
       });
-      if (brokerageAUCGTTotalAUD > 0) auTaxDetail.push({
-        label: 'Brokerage CGT (post-move gains, 50% discount)',
-        amount: brokerageAUCGTTotalAUD / fxRate,
-        note: `A$${Math.round(brokerageAUCGTTotalAUD).toLocaleString()} AUD`,
-      });
+      if (brokerageAUCGTTotalAUD > 0) {
+        const auEffectivePct = brokerageAUGainTotalAUD > 0
+          ? ((brokerageAUCGTTotalAUD / brokerageAUGainTotalAUD) * 100).toFixed(1)
+          : '0.0';
+        auTaxDetail.push({
+          label: 'Brokerage CGT (post-move gains, 50% discount)',
+          amount: brokerageAUCGTTotalAUD / fxRate,
+          note: `A$${Math.round(brokerageAUGainTotalAUD).toLocaleString()} gain realized; A$${Math.round(brokerageAUCGTTotalAUD).toLocaleString()} tax; ${auEffectivePct}% effective rate`,
+        });
+      }
       rothPostMoveDetails.forEach(d => auTaxDetail.push(d));
 
       // Total AU tax paid (AUD) → USD equivalent is the full AU liability

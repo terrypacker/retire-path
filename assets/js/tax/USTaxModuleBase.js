@@ -76,9 +76,15 @@ export class USTaxModuleBase extends BaseTaxModule {
       const totalResult = this._applyBrackets(Math.max(0, income + gain - stdDed), brackets);
       tax = totalResult.tax - baseResult.tax;
     } else {
-      const ltcgBrackets   = this._inflateBrackets(this._ltcg_mfj, this.year, year, this._inflationRate);
-      const { tax: t }     = this._applyBrackets(gain, ltcgBrackets);
-      tax = t;
+      // Long-term: LTCG stacks on top of ordinary income (after standard deduction).
+      // Ordinary income occupies the lower LTCG brackets first; the gain is taxed
+      // at the marginal rate where it falls when added on top.
+      const stdDed = Math.round(this._stdDeduction_mfj * Math.pow(1 + this._inflationRate, year - this.year));
+      const ltcgBrackets = this._inflateBrackets(this._ltcg_mfj, this.year, year, this._inflationRate);
+      const ordinaryAfterDeduction = Math.max(0, income - stdDed);
+      const { tax: taxWithGain } = this._applyBrackets(ordinaryAfterDeduction + gain, ltcgBrackets);
+      const { tax: taxWithout  } = this._applyBrackets(ordinaryAfterDeduction, ltcgBrackets);
+      tax = taxWithGain - taxWithout;
       // NIIT on investment income above threshold for high earners
       const niitThreshold  = Math.round(250000 * Math.pow(1 + this._inflationRate, year - this.year));
       if (income + gain > niitThreshold) {

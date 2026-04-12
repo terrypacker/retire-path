@@ -308,11 +308,14 @@ test('AU CGT: SS income does not inflate the brokerage CGT bracket base', () => 
 //   (a) draw the $5k above-minimum from savings first (no tax event), then
 //   (b) sell ~$75k+ of brokerage holdings as a forced sale (capital gains tax applies).
 //
+// Alice is retired with zero other income, so the ~$40K gain falls inside the MFJ
+// 0% LTCG bracket and usTax = 0. The scenario validates cash-flow mechanics.
+// CGT with income stacking (15% bracket) is tested in 'us-forced-sale-high-income.json'.
+//
 // Tests verify:
 //   1. A savings withdrawal appears in incomeDetail (no isForcedSale flag).
 //   2. A brokerage forced sale appears in incomeDetail with isForcedSale === true
 //      and gainWithdrawn > 0.
-//   3. US capital gains tax is assessed (usTax > 0) due to the brokerage sale.
 
 test('Savings + forced sale: savings drawn above minimum before brokerage', () => {
   const state  = createMockState(loadScenario('us-savings-forced-brokerage-sale.json'));
@@ -361,5 +364,83 @@ test('Savings + forced sale: deficit triggers brokerage sale with isForcedSale f
   assert.ok(
     firstRetirementYear.totalIncome > 0,
     `Expected totalIncome > 0 (brokerage withdrawal should be counted as income), got ${firstRetirementYear.totalIncome}`
+  );
+});
+
+// ── Scenario: Forced sale CGT with high employment income ─────────────────────
+// Alice (born 1985, not yet retired) has $200K employment income and $250K in
+// annual expenses. The $50K deficit is partially covered by $5K from a savings
+// account (above its $25K minimum floor). The remaining $45K is a forced
+// brokerage sale from a $300K account with $100K cost basis (gain fraction 2/3).
+// gainWithdrawn = $45K × 2/3 = $30K.
+//
+// Inflation is zeroed in the scenario so amounts are round. The module's own
+// 2.5%/yr bracket inflation still applies to project the 2025 brackets to 2026:
+//   stdDed  ≈ $30,750   (30000 × 1.025)
+//   LTCG 0% ≈ $99,118   (96700 × 1.025)
+//
+// Ordinary income after deduction: $200,000 − $30,750 = $169,250
+// Since $169,250 > $99,118 (0% ceiling), the entire $30,000 gain is at 15%.
+// Expected CGT = $30,000 × 15% = $4,500.
+//
+// This directly tests the LTCG income-stacking fix. Before the fix, the code
+// applied LTCG brackets to the gain alone ($30K < $99K → 0%), so the tax was
+// $0 and nothing appeared in usTaxDetail.
+
+test('Forced sale high-income: CGT appears in usTaxDetail at 15% bracket', () => {
+  const state  = createMockState(loadScenario('us-forced-sale-high-income.json'));
+  const taxes  = new TaxEngine();
+  const engine = new ProjectionEngine(state, taxes);
+
+  const years     = engine.run();
+  const firstYear = years[0];
+
+  // Confirm a forced sale happened with gain
+  const forcedSaleItem = firstYear.incomeDetail.find(d => d.isForcedSale === true);
+  assert.ok(
+    forcedSaleItem && forcedSaleItem.gainWithdrawn > 0,
+    `Expected a forced-sale brokerage entry with gain in incomeDetail for year ${firstYear.year}. ` +
+    `Got: ${JSON.stringify(firstYear.incomeDetail.map(d => ({ label: d.label, isForcedSale: d.isForcedSale, gainWithdrawn: d.gainWithdrawn })))}`
+  );
+
+  // The CGT line must appear in usTaxDetail
+  const cgtEntry = firstYear.usTaxDetail.find(d => d.label === 'Capital Gains Tax (long-term)');
+  assert.ok(
+    cgtEntry !== undefined,
+    `Expected 'Capital Gains Tax (long-term)' in usTaxDetail for year ${firstYear.year} ` +
+    `(forced brokerage sale with $${Math.round(forcedSaleItem.gainWithdrawn).toLocaleString()} gain + $200K employment income). ` +
+    `usTaxDetail labels: ${JSON.stringify(firstYear.usTaxDetail.map(d => d.label))}`
+  );
+
+  // CGT must be > 0 — the gain stacks on top of $169K ordinary income, all at 15%
+  assert.ok(
+    cgtEntry.amount > 0,
+    `Expected CGT > 0, got ${cgtEntry.amount}. ` +
+    'Ordinary income after deduction exceeds the 0% LTCG threshold; gain should be taxed at 15%.'
+  );
+});
+
+test('Forced sale high-income: CGT is ~15% of the gain (income-stacking correct)', () => {
+  // $30,000 gain × 15% = $4,500. Allow ±$50 for bracket rounding across inflation years.
+  const state  = createMockState(loadScenario('us-forced-sale-high-income.json'));
+  const taxes  = new TaxEngine();
+  const engine = new ProjectionEngine(state, taxes);
+
+  const years     = engine.run();
+  const firstYear = years[0];
+
+  const cgtEntry = firstYear.usTaxDetail.find(d => d.label === 'Capital Gains Tax (long-term)');
+  assert.ok(cgtEntry !== undefined, 'CGT entry must exist in usTaxDetail (see previous test)');
+
+  const forcedSale     = firstYear.incomeDetail.find(d => d.isForcedSale);
+  const gainWithdrawn  = forcedSale ? forcedSale.gainWithdrawn : 0;
+  const expectedCGT    = gainWithdrawn * 0.15;   // all gain is above the 0% threshold
+  const tolerance      = 50;
+
+  assert.ok(
+    Math.abs(cgtEntry.amount - expectedCGT) <= tolerance,
+    `CGT ($${cgtEntry.amount.toFixed(2)}) should be ~15% of gain ($${gainWithdrawn.toFixed(2)}) = ` +
+    `$${expectedCGT.toFixed(2)} ±$${tolerance}. ` +
+    'Income stacking may not be applied correctly in calcCapitalGainsTax.'
   );
 });
