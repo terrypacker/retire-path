@@ -157,7 +157,7 @@ export class ProjectionEngine {
     // ── Income ───────────────────────────────────────────────────────────────
     // Per-person income tracking (for AU individual tax assessment)
     const personIncome = {};
-    people.forEach(p => { personIncome[p.id] = { employment: 0, ss: 0, withdrawals: 0 }; });
+    people.forEach(p => { personIncome[p.id] = { employment: 0, ss: 0, withdrawals: 0, withdrawalSources: [] }; });
 
     // Employment income (pre-retirement) — sum each working person's individual income
     let employmentIncome = 0;
@@ -199,6 +199,7 @@ export class ProjectionEngine {
     const brokerageWithdrawalDetails = [];
     const usPenaltyDetails           = [];  // line items for US tax detail
     const rothPostMoveDetails        = [];  // AU tax notes for Roth corpus/gains breakdown
+    const usTaxableWithdrawalSources = [];  // per-account US taxable withdrawal amounts (for tax detail drilldown)
 
     retirementAccts.forEach(acc => {
       const accData = accBalances[acc.id] || { balance: 0, contributions: 0, moveValueBasis: null };
@@ -242,6 +243,9 @@ export class ProjectionEngine {
         // Always compute US treatment — US citizens are taxed on worldwide income.
         const usTreatment = acc.getUSAccountTreatment('withdrawal', withdrawal, treatCtx);
         usTaxableWithdrawals += usTreatment.taxableIncome;
+        if (usTreatment.taxableIncome > 0) {
+          usTaxableWithdrawalSources.push({ label: acc.getDisplayLabel(), amount: usTreatment.taxableIncome });
+        }
         if (usTreatment.penaltyAmount > 0) {
           usTotalPenalty += usTreatment.penaltyAmount;
           usPenaltyDetails.push({
@@ -255,6 +259,9 @@ export class ProjectionEngine {
         if (isPostMove && acc.ownerId && personIncome[acc.ownerId] !== undefined) {
           const auTreatment = acc.getAUAccountTreatment('withdrawal', withdrawal, treatCtx);
           personIncome[acc.ownerId].withdrawals += auTreatment.taxableIncome;
+          if (auTreatment.taxableIncome > 0) {
+            personIncome[acc.ownerId].withdrawalSources.push({ label: acc.getDisplayLabel(), amount: auTreatment.taxableIncome });
+          }
           if (auTreatment.note) {
             rothPostMoveDetails.push({ label: `${acc.getDisplayLabel()} withdrawal`, amount: withdrawal, note: auTreatment.note });
           }
@@ -404,11 +411,25 @@ export class ProjectionEngine {
       }
       // Build US tax detail
       if (usTotalPenalty > 0) usTax += usTotalPenalty;
-      if (usResult.incomeTax > 0) usTaxDetail.push({
-        label: 'Ordinary Income Tax',
-        amount: usResult.incomeTax,
-        note: `std. deduction $${Math.round(usResult.stdDeduction / 1000)}K applied`,
-      });
+      if (usResult.incomeTax > 0) {
+        const usSources = [];
+        people.forEach(p => {
+          if (personIncome[p.id].employment > 0) usSources.push({ label: `${p.name} — Employment Income`, amount: personIncome[p.id].employment });
+          if (personIncome[p.id].ss > 0)         usSources.push({ label: `${p.name} — Social Security`, amount: personIncome[p.id].ss });
+        });
+        usTaxableWithdrawalSources.forEach(s => usSources.push(s));
+        if (propertySaleIncome > 0) usSources.push({ label: 'Property Sale Proceeds', amount: propertySaleIncome });
+        if (usSources.length > 0) {
+          usSources.push({ label: 'Total Ordinary Income', amount: ordinaryIncome, isSummary: true });
+          usSources.push({ label: 'Standard Deduction', amount: -usResult.stdDeduction, isSummary: true });
+        }
+        usTaxDetail.push({
+          label: 'Ordinary Income Tax',
+          amount: usResult.incomeTax,
+          note: `std. deduction $${Math.round(usResult.stdDeduction / 1000)}K applied`,
+          sources: usSources,
+        });
+      }
       if (usResult.ficaTax > 0) usTaxDetail.push({ label: 'FICA (Social Security & Medicare)', amount: usResult.ficaTax });
       if (usCGTResult.tax > 0) usTaxDetail.push({ label: 'Capital Gains Tax (long-term)', amount: usCGTResult.tax });
       usPenaltyDetails.forEach(d => usTaxDetail.push(d));
@@ -431,7 +452,13 @@ export class ProjectionEngine {
           auIncomeTaxTotal += auResult.tax;
           // Per-person AU tax detail (show gross income tax then LITO as a credit)
           const grossIncomeTax = auResult.incomeTax + auResult.lito;
-          if (grossIncomeTax > 0)        auTaxDetail.push({ label: `${p.name} — Income Tax`, amount: grossIncomeTax });
+          if (grossIncomeTax > 0) {
+            const auPersonSources = [];
+            if (pIncome.employment > 0) auPersonSources.push({ label: 'Employment Income', amount: pIncome.employment });
+            pIncome.withdrawalSources.forEach(s => auPersonSources.push(s));
+            if (auPersonSources.length > 0) auPersonSources.push({ label: 'Total AU Taxable Income', amount: personAUIncome, isSummary: true });
+            auTaxDetail.push({ label: `${p.name} — Income Tax`, amount: grossIncomeTax, sources: auPersonSources });
+          }
           if (auResult.lito > 0)         auTaxDetail.push({ label: `${p.name} — LITO Offset`, amount: auResult.lito, isCredit: true });
           if (auResult.medicareLevy > 0) auTaxDetail.push({ label: `${p.name} — Medicare Levy (2%)`, amount: auResult.medicareLevy });
           if (auResult.medicareLevySurcharge > 0) {

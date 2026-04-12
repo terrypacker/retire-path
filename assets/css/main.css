@@ -839,6 +839,16 @@ body {
 .cf-table-tax td:nth-child(3) { text-align: left; font-size: 0.72rem; color: var(--text-muted); }
 .cf-section-row td { font-style: italic; color: var(--text-muted); font-size: 0.72rem; padding-top: 12px !important; border-top: 1px dashed var(--border); }
 
+/* Tax detail row expansion */
+.tax-expandable { cursor: pointer; }
+.tax-expandable:hover td { background: rgba(74,111,165,0.12) !important; }
+.tax-expand-icon { display: inline-block; width: 1em; font-size: 0.65em; opacity: 0.6; vertical-align: middle; margin-right: 2px; }
+.tax-source-row td { background: rgba(10,14,30,0.4); border-bottom: 1px solid rgba(42,49,72,0.3) !important; }
+.tax-source-label { padding-left: 2.2rem !important; color: var(--text-muted) !important; font-size: 0.75rem !important; font-style: italic; }
+.tax-source-row td:nth-child(2) { color: var(--text-secondary) !important; font-size: 0.75rem; }
+.tax-source-summary td { border-top: 1px solid rgba(42,49,72,0.6) !important; font-style: normal !important; color: var(--text-secondary) !important; font-weight: 600; }
+.tax-source-summary .tax-source-label { color: var(--text-secondary) !important; font-style: normal; }
+
 /* ── Legend ── */
 .chart-legend {
   display: flex;

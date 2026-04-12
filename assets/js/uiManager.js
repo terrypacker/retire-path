@@ -88,6 +88,22 @@ export class UIManager {
         if (action === 'remove') this.removeBrokerage(id);
       });
 
+      // Event delegation for tax detail row expansion
+      const modalBody = document.getElementById('cashflow-modal-body');
+      if (modalBody) {
+        modalBody.addEventListener('click', e => {
+          const row = e.target.closest('tr[data-expand-idx]');
+          if (!row) return;
+          const idx = row.dataset.expandIdx;
+          const icon = row.querySelector('.tax-expand-icon');
+          const tbody = row.parentElement;
+          const sourceRows = tbody.querySelectorAll(`tr[data-expand-parent="${idx}"]`);
+          const isOpen = sourceRows.length > 0 && sourceRows[0].style.display !== 'none';
+          sourceRows.forEach(r => { r.style.display = isOpen ? 'none' : ''; });
+          if (icon) icon.textContent = isOpen ? '▶' : '▼';
+        });
+      }
+
       this._bound = true;
     }
     this._renderAccountList();
@@ -489,17 +505,40 @@ export class UIManager {
     document.getElementById('cashflow-modal-title').textContent =
       `${flag} ${yd.year} ${label} Tax Breakdown`;
 
-    const charges = detail.filter(d => !d.isCredit);
-    const credits = detail.filter(d =>  d.isCredit);
+    const indexedDetail = detail.map((item, i) => ({ ...item, _idx: i }));
+    const charges = indexedDetail.filter(d => !d.isCredit);
+    const credits = indexedDetail.filter(d =>  d.isCredit);
 
-    const chargeRows = charges.map(item => {
+    const _renderTaxRow = (item, amountClass = '') => {
       const note = item.note ? `<span class="cf-note">${item.note}</span>` : '';
-      return `<tr>
-        <td>${item.label}</td>
-        <td class="cf-amount">${fmt(item.amount)}</td>
+      const hasSources = item.sources && item.sources.length > 0;
+      const labelHtml = hasSources
+        ? `<span class="tax-expand-icon">▶</span> ${item.label}`
+        : item.label;
+      const trAttrs = hasSources
+        ? ` class="tax-expandable" data-expand-idx="${item._idx}"`
+        : '';
+      const sourceRowsHtml = hasSources
+        ? item.sources.map(src => {
+            const cls = src.isSummary ? ' tax-source-summary' : '';
+            const amtHtml = src.amount < 0
+              ? `<td class="cf-amount neg">−${fmt(-src.amount)}</td>`
+              : `<td class="cf-amount">${fmt(src.amount)}</td>`;
+            return `<tr class="tax-source-row${cls}" data-expand-parent="${item._idx}" style="display:none">
+              <td class="tax-source-label">${src.label}</td>
+              ${amtHtml}
+              <td></td>
+            </tr>`;
+          }).join('')
+        : '';
+      return `<tr${trAttrs}>
+        <td>${labelHtml}</td>
+        <td class="cf-amount${amountClass}">${fmt(item.amount)}</td>
         <td class="tax-notes">${note}</td>
-      </tr>`;
-    }).join('');
+      </tr>${sourceRowsHtml}`;
+    };
+
+    const chargeRows = charges.map(item => _renderTaxRow(item)).join('');
 
     let creditSection = '';
     if (credits.length > 0) {
