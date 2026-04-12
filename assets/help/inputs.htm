@@ -96,6 +96,28 @@
 </div>
 
 <div class="field">
+  <div class="field-name">Account Type</div>
+  <div class="field-desc">Determines the tax treatment and enforces the correct country and currency automatically — you cannot change country/currency for type-locked accounts:
+    <ul style="margin:6px 0 0 16px;color:#8a94b0;">
+      <li><strong>401(k)</strong> — US / USD, pre-tax employer plan</li>
+      <li><strong>Traditional IRA</strong> — US / USD, pre-tax individual account</li>
+      <li><strong>Roth IRA</strong> — US / USD, after-tax individual account</li>
+      <li><strong>Australian Super</strong> — AUS / AUD, compulsory super fund</li>
+    </ul>
+  </div>
+</div>
+
+<div class="field">
+  <div class="field-name">Contributions to Date (Corpus / Basis) <span class="tag tag-us">Roth &amp; IRA only</span></div>
+  <div class="field-desc">The total after-tax dollars you have personally contributed to this account so far (not counting employer contributions or investment gains). Must be ≤ current balance.
+    <br><br>
+    <strong>Why it matters — Roth early withdrawal:</strong> Roth contributions can always be withdrawn without penalty at any age. Only the <em>gains portion</em> (balance minus contributions) faces the 10% IRS early withdrawal penalty if you are under 59½. The model uses this split automatically.
+    <br><br>
+    <strong>Year-by-year tracking:</strong> The model increases this value each year by your annual contribution and reduces it proportionally as withdrawals are made, so the corpus/gains split stays accurate over time.
+  </div>
+</div>
+
+<div class="field">
   <div class="field-name">Annual Contribution</div>
   <div class="field-desc">How much you personally contribute each year. Contributions stop when you retire. The model enforces no contribution limits warnings — ensure yours comply with annual IRS/ATO caps.</div>
 </div>
@@ -108,6 +130,16 @@
 <div class="field">
   <div class="field-name">Expected Growth Rate %</div>
   <div class="field-desc">Nominal annual return assumption (before inflation). Historical US equity markets have returned ~10% nominal, ~7% real. A common planning rate is 6–7% for a balanced portfolio. This is applied gross — consider your actual allocation.</div>
+</div>
+
+<div class="field">
+  <div class="field-name">Withdraw From Age</div>
+  <div class="field-desc">The age at which the model begins drawing from this account to cover retirement expenses. Default is 59½ for US accounts (the IRS penalty-free threshold) and 60 for Australian Super (condition of release). You can adjust for Substantially Equal Periodic Payments (72(t)) or other early-access scenarios.</div>
+</div>
+
+<div class="field">
+  <div class="field-name">Value at Move Date</div>
+  <div class="field-desc">Computed automatically — you do not enter this. When the projection reaches your Australia move year, the model records the account balance at that point as the FMV on residency date. This value is used for Australian deemed-acquisition CGT rules (brokerage) and as context for foreign-income tax treaty calculations (401k / IRA). Super accounts do not require this as they are already Australian assets.</div>
 </div>
 
 <h2>🏠 Properties</h2>

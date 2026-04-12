@@ -29,9 +29,17 @@ assets/js/
     RealEstate.js         ← extends BaseAsset; applyAppreciation(), applyMortgageReduction(), getEquity(), isSoldThisYear(), hasActiveMortgage()
     Land.js               ← extends BaseAsset; undeveloped land stub (not yet in state)
     BaseAccount.js        ← extends BaseAsset; adds balance, growthRate, ownerId, type; applyGrowth()
-    RetirementAccount.js  ← extends BaseAccount; 401k/Roth/IRA/Super; getContribution(), applyContributions(), canWithdraw()
+    RetirementAccount.js  ← extends BaseAccount; base class with getContribution(), applyContributions(), canWithdraw(),
+                             getUSAccountTreatment(), getAUAccountTreatment() stubs
+    accounts/
+      Account401k.js         ← extends RetirementAccount; US 401(k); enforces country=US/currency=USD
+      RothAccount.js         ← extends RetirementAccount; Roth IRA; tracks contributions corpus; enforces US/USD
+      TraditionalIRAAccount.js ← extends RetirementAccount; Traditional IRA; enforces US/USD
+      SuperAccount.js        ← extends RetirementAccount; AU Super; enforces country=AUS/currency=AUD;
+                               holds CONTRIBUTIONS_TAX_RATE, EARNINGS_TAX_RATE, WITHDRAWAL_TAX_UNDER_60 constants
     BrokerageAccount.js   ← extends BaseAccount; applyContributions(bal,basis), calculateWithdrawal()
-    AssetFactory.js       ← wrapRetirementAccount(), wrapBrokerageAccount(), wrapAsset() — creates class instances from POJOs
+    AssetFactory.js       ← wrapRetirementAccount() dispatches by type to correct subclass;
+                             wrapBrokerageAccount(), wrapAsset() — creates class instances from POJOs
   tax/
     BaseTaxModule.js           ← Abstract base class; shared _inflateBrackets/_applyBrackets utilities
     USTaxModuleBase.js         ← Shared US logic: calcIncomeTax, calcCapitalGainsTax, accountTreatment, calcSocialSecurity
@@ -125,11 +133,11 @@ Create a new file in `assets/js/tax/` named `{Country}TaxModule{YEAR}.js` that e
 Create a `{Country}TaxModuleBase.js` extending `BaseTaxModule` with all shared country logic. Add year-specific subclasses following the same pattern as US/AU. Import all year modules in `tax/TaxEngine.js` and register them in the constructor.
 
 **Adding a new account type:**
-1. If it needs custom logic, create a subclass of `RetirementAccount` or `BrokerageAccount` in `assets/js/assets/` and register it in `AssetFactory.wrapRetirementAccount()`
-2. Add to `AppState` default state and helper CRUD methods
-3. Handle in `ProjectionEngine` simulation loop (usually just works via base-class methods)
-4. Add rendering in `UIManager`
-5. Add tax treatment in the relevant `TaxModule.accountTreatment()`
+1. Create a subclass of `RetirementAccount` in `assets/js/assets/accounts/`. Enforce `type`, `country`, and `currency` in the constructor. Override `getUSAccountTreatment()` and `getAUAccountTreatment()` with the type-specific rules.
+2. Register it in `AssetFactory.wrapRetirementAccount()` with a new `case` in the switch.
+3. Add the type to `AppState` default accounts and CRUD helpers if needed.
+4. Add the `<option>` to the account type `<select>` in `index.html`. The country/currency selectors are auto-locked by `UIManager._updateAccountTypeConstraints()` — add an entry there if the new type has locked country/currency.
+5. `ProjectionEngine` calls `acc.getUSAccountTreatment()` / `acc.getAUAccountTreatment()` automatically — no engine changes needed for typical account types.
 
 **State mutations:**
 Always go through `AppState` methods — never mutate `_state` directly from outside the class.
