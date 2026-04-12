@@ -506,7 +506,7 @@ export class ChartManager {
   // ══════════════════════════════════════════════════════════════════════════
   // Account Balances Over Time — one line per account/brokerage/property
   // ══════════════════════════════════════════════════════════════════════════
-  renderAccountBalances(years, accounts, brokerageAccounts, properties) {
+  renderAccountBalances(years, accounts, brokerageAccounts, savingsAccounts, properties) {
     const canvas = document.getElementById('chart-account-balances');
     if (!canvas) return;
 
@@ -545,6 +545,20 @@ export class ChartManager {
         backgroundColor: 'transparent',
         borderWidth: 2,
         borderDash: [6, 3],
+        pointRadius: 0,
+        tension: 0.3,
+      });
+    });
+
+    savingsAccounts.forEach(s => {
+      const c = color();
+      datasets.push({
+        label: `${s.name} (Savings)`,
+        data: years.map(y => (y.assetBalances || {})[s.id] || 0),
+        borderColor: c,
+        backgroundColor: 'transparent',
+        borderWidth: 2,
+        borderDash: [8, 3, 2, 3],
         pointRadius: 0,
         tension: 0.3,
       });
@@ -621,6 +635,7 @@ export class ChartManager {
       years,
       appState.get('accounts'),
       appState.get('brokerageAccounts'),
+      appState.get('savingsAccounts') || [],
       appState.get('properties')
     );
   }

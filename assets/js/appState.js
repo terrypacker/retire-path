@@ -160,6 +160,19 @@ export class AppState {
           costBasis: 38000,
           isJointAccount: false,
           ownerId: 'person1',
+          priority: 1,
+        }
+      ],
+
+      // ── Savings / Cash ────────────────────────────────────
+      savingsAccounts: [
+        {
+          id: 'sav1',
+          name: 'Emergency Fund',
+          balance: 30000,
+          growthRate: 4.5,
+          minimumBalance: 10000,
+          priority: 1,
         }
       ],
 
@@ -262,6 +275,26 @@ export class AppState {
   removeBrokerage(id) {
     this._state.brokerageAccounts = this._state.brokerageAccounts.filter(b => b.id !== id);
     this.notify(['brokerageAccounts']);
+  }
+
+  // ── Savings helpers ───────────────────────────────────────
+  addSavings(acct) {
+    acct.id = 'sav_' + Date.now();
+    this._state.savingsAccounts.push(acct);
+    this.notify(['savingsAccounts']);
+  }
+
+  updateSavings(id, updates) {
+    const idx = this._state.savingsAccounts.findIndex(s => s.id === id);
+    if (idx > -1) {
+      this._state.savingsAccounts[idx] = { ...this._state.savingsAccounts[idx], ...updates };
+      this.notify(['savingsAccounts']);
+    }
+  }
+
+  removeSavings(id) {
+    this._state.savingsAccounts = this._state.savingsAccounts.filter(s => s.id !== id);
+    this.notify(['savingsAccounts']);
   }
 
   // ── Persistence ───────────────────────────────────────────

@@ -1,0 +1,54 @@
+{
+  "_comment": "Single retired US person with a brokerage account and a savings account with a minimum balance floor. Expenses ($80k) far exceed savings available above minimum ($5k), forcing a deficit-triggered brokerage sale each year. Used to test: (1) savings drawn above minimum before brokerage, (2) forced brokerage sale flagged with isForcedSale and capital gains tax applied.",
+  "currency": "USD",
+  "fxRate": 1.58,
+  "taxBaseYear": 2025,
+  "people": [
+    {
+      "id": "person1",
+      "name": "Alice",
+      "birthYear": 1960,
+      "retirementAge": 62,
+      "lifeExpectancy": 90,
+      "socialSecurityAge": 70,
+      "socialSecurityMonthly": 0,
+      "isCitizen": "us",
+      "annualIncome": 0
+    }
+  ],
+  "moveToAustraliaYear": 2060,
+  "moveEnabled": false,
+  "inflationUS": 3.0,
+  "inflationAUS": 3.0,
+  "accounts": [],
+  "properties": [],
+  "brokerageAccounts": [
+    {
+      "id": "brok1",
+      "name": "US Brokerage",
+      "country": "US",
+      "balance": 200000,
+      "currency": "USD",
+      "annualContribution": 0,
+      "growthRate": 7.0,
+      "costBasis": 100000,
+      "isJointAccount": false,
+      "ownerId": "person1",
+      "priority": 1
+    }
+  ],
+  "savingsAccounts": [
+    {
+      "id": "sav1",
+      "name": "Emergency Fund",
+      "balance": 15000,
+      "growthRate": 2.0,
+      "minimumBalance": 10000,
+      "priority": 1
+    }
+  ],
+  "currentAnnualExpenses": 80000,
+  "retirementExpenseRatio": 1.0,
+  "australiaExpenseRatio": 1.0,
+  "targetEndBalance": 0
+}

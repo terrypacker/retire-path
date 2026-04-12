@@ -42,21 +42,23 @@ export class ProjectionEngine {
 
     // Wrap POJOs with class instances once; the engine's carry-forward maps
     // hold the evolving balances — the instances themselves are stateless.
-    const retirementAccts = s.accounts.map(a          => AssetFactory.wrapRetirementAccount(a));
-    const brokerageAccts  = s.brokerageAccounts.map(b => AssetFactory.wrapBrokerageAccount(b));
-    const propertyAssets  = s.properties.map(p        => AssetFactory.wrapAsset(p));
+    const retirementAccts = s.accounts.map(a                => AssetFactory.wrapRetirementAccount(a));
+    const brokerageAccts  = s.brokerageAccounts.map(b       => AssetFactory.wrapBrokerageAccount(b));
+    const savingsAccts    = (s.savingsAccounts || []).map(a => AssetFactory.wrapSavingsAccount(a));
+    const propertyAssets  = s.properties.map(p              => AssetFactory.wrapAsset(p));
 
     const years = [];
     let accountBalances = this._initAccountBalances(retirementAccts);
     let propertyValues  = this._initPropertyValues(propertyAssets);
     let brokerageValues = this._initBrokerageValues(brokerageAccts);
+    let savingsValues   = this._initSavingsValues(savingsAccts);
 
     let ftcCarryForward = 0;  // USD excess FTC from prior year
     for (let year = startYear; year <= endYear; year++) {
       const yd = this._projectYear(
         year, s,
-        retirementAccts, brokerageAccts, propertyAssets,
-        accountBalances, propertyValues, brokerageValues,
+        retirementAccts, brokerageAccts, savingsAccts, propertyAssets,
+        accountBalances, propertyValues, brokerageValues, savingsValues,
         ftcCarryForward
       );
       years.push(yd);
@@ -65,6 +67,7 @@ export class ProjectionEngine {
       accountBalances = yd._nextAccountBalances;
       propertyValues  = yd._nextPropertyValues;
       brokerageValues = yd._nextBrokerageValues;
+      savingsValues   = yd._nextSavingsValues;
       ftcCarryForward = yd._nextFtcCarryForward || 0;
     }
 
@@ -103,9 +106,15 @@ export class ProjectionEngine {
     return v;
   }
 
+  _initSavingsValues(savingsAccts) {
+    const v = {};
+    savingsAccts.forEach(s => { v[s.id] = { balance: s.balance }; });
+    return v;
+  }
+
   // ── Per-year projection ───────────────────────────────────────────────────
 
-  _projectYear(year, s, retirementAccts, brokerageAccts, propertyAssets, accBalances, propValues, brokValues, ftcCarryForward = 0) {
+  _projectYear(year, s, retirementAccts, brokerageAccts, savingsAccts, propertyAssets, accBalances, propValues, brokValues, savValues, ftcCarryForward = 0) {
     const people      = s.people;
     const moveYear    = s.moveToAustraliaYear;
     const moveEnabled = s.moveEnabled;
@@ -124,7 +133,7 @@ export class ProjectionEngine {
     const anyAlive     = people.some(p => year <= p.birthYear + p.lifeExpectancy);
 
     if (!anyAlive) {
-      return this._emptyYear(year, accBalances, propValues, brokValues);
+      return this._emptyYear(year, accBalances, propValues, brokValues, savValues);
     }
 
     // ── Expenses ─────────────────────────────────────────────────────────────
@@ -335,8 +344,8 @@ export class ProjectionEngine {
     });
 
     // ── Brokerage growth & contributions ──────────────────────────────────────
+    // Phase 1: apply growth and contributions for all brokerage accounts (original order).
     const nextBrokValues = {};
-    let totalBrokerageValue = 0;
 
     brokerageAccts.forEach(brok => {
       let { balance, costBasis, moveValueBasis: brokMVB } =
@@ -356,8 +365,44 @@ export class ProjectionEngine {
         totalAccountContributions += contrib;
       }
 
-      // Drawdown from brokerage if still a gap
-      if (allRetired && withdrawalGapRemaining > 0 && balance > 0) {
+      nextBrokValues[brok.id] = { balance: Math.max(0, balance), costBasis: Math.max(0, costBasis), moveValueBasis: brokMVB };
+    });
+
+    // ── Savings account growth & above-minimum withdrawals ────────────────────
+    // Savings withdrawals cover the gap before brokerage is touched (no tax event).
+    const nextSavValues = {};
+    let totalSavingsValue = 0;
+    const savingsWithdrawalDetails = [];
+
+    savingsAccts.forEach(sav => {
+      let { balance } = savValues[sav.id] || { balance: sav.balance };
+      balance = sav.applyGrowth(balance);
+
+      if (withdrawalGapRemaining > 0) {
+        const { withdrawal, newBalance } = sav.calculateWithdrawal(balance, withdrawalGapRemaining);
+        if (withdrawal > 0) {
+          balance = newBalance;
+          withdrawalGapRemaining -= withdrawal;
+          totalAccountWithdrawals += withdrawal;
+          savingsWithdrawalDetails.push({ label: sav.getDisplayLabel(), amount: withdrawal, depositedTo: 'Expense Pool' });
+        }
+      }
+
+      totalSavingsValue += balance;
+      nextSavValues[sav.id] = { balance: Math.max(0, balance) };
+    });
+
+    // ── Brokerage withdrawal pass (sorted by priority) ────────────────────────
+    // Phase 2: draw from brokerage to cover any remaining gap.
+    // Fires for retired persons (normal drawdown) or when a deficit exists pre-retirement
+    // and expenses exceed the savings minimum floor (forced sale).
+    let totalBrokerageValue = 0;
+    const sortedBrokAccts = [...brokerageAccts].sort((a, b) => a.priority - b.priority);
+
+    sortedBrokAccts.forEach(brok => {
+      let { balance, costBasis, moveValueBasis: brokMVB } = nextBrokValues[brok.id];
+
+      if ((allRetired || withdrawalGapRemaining > 0) && withdrawalGapRemaining > 0 && balance > 0) {
         const preWithdrawalBalance   = balance;
         const preWithdrawalCostBasis = costBasis;
         const { withdrawal, gainWithdrawn, newBalance, newCostBasis } =
@@ -367,7 +412,10 @@ export class ProjectionEngine {
         brokerageGainWithdrawn += gainWithdrawn;
         withdrawalGapRemaining -= withdrawal;
         totalAccountWithdrawals += withdrawal;
-        brokerageWithdrawalDetails.push({ label: brok.getDisplayLabel(), amount: withdrawal, gainWithdrawn, depositedTo: 'Expense Pool' });
+        // A "forced sale" is when savings accounts exist but their minimum floor prevented
+        // full gap coverage, requiring brokerage to be liquidated to cover the deficit.
+        const isForcedSale = savingsAccts.length > 0;
+        brokerageWithdrawalDetails.push({ label: brok.getDisplayLabel(), amount: withdrawal, gainWithdrawn, depositedTo: 'Expense Pool', isForcedSale });
 
         // Post-move: AU CGT on gains accrued after becoming Australian resident.
         // Split gain by ownership and compute each owner's CGT at their own marginal rate.
@@ -401,10 +449,11 @@ export class ProjectionEngine {
         if (!isPostMove && brok.country === 'AUS' && gainWithdrawn > 0) {
           auNonResGainWithdrawnUSD += gainWithdrawn;
         }
+
+        nextBrokValues[brok.id] = { balance: Math.max(0, balance), costBasis: Math.max(0, costBasis), moveValueBasis: brokMVB };
       }
 
-      totalBrokerageValue += balance;
-      nextBrokValues[brok.id] = { balance: Math.max(0, balance), costBasis: Math.max(0, costBasis), moveValueBasis: brokMVB };
+      totalBrokerageValue += nextBrokValues[brok.id].balance;
     });
 
     // ── Deposit property sale proceeds into destination accounts ──────────────
@@ -627,12 +676,13 @@ export class ProjectionEngine {
 
     // ── Net worth ─────────────────────────────────────────────────────────────
     const totalAccountValue = Object.values(nextAccBalances).reduce((a, obj) => a + (obj.balance || 0), 0);
-    const netWorth = totalAccountValue + totalPropertyEquity + totalBrokerageValue;
+    const netWorth = totalAccountValue + totalPropertyEquity + totalBrokerageValue + totalSavingsValue;
 
     // ── Per-asset balance snapshot (for account balance chart) ────────────────
     const assetBalances = {};
     retirementAccts.forEach(acc => { assetBalances[acc.id] = (nextAccBalances[acc.id] || {}).balance || 0; });
     brokerageAccts.forEach(b => { assetBalances[b.id] = (nextBrokValues[b.id] || {}).balance || 0; });
+    savingsAccts.forEach(sav => { assetBalances[sav.id] = (nextSavValues[sav.id] || {}).balance || 0; });
     propertyAssets.forEach(prop => {
       const pv = nextPropValues[prop.id] || { value: 0, mortgage: 0 };
       assetBalances[prop.id] = prop.getEquity(pv.value, pv.mortgage);
@@ -646,6 +696,7 @@ export class ProjectionEngine {
       if (pi.ss > 0)         incomeDetail.push({ label: `${p.name} — Social Security`, amount: pi.ss, depositedTo: 'Expense Pool' });
     });
     accountWithdrawalDetails.forEach(d  => incomeDetail.push(d));
+    savingsWithdrawalDetails.forEach(d  => incomeDetail.push(d));
     brokerageWithdrawalDetails.forEach(d => incomeDetail.push(d));
     propertySaleDetails.forEach(d       => incomeDetail.push(d));
 
@@ -662,7 +713,8 @@ export class ProjectionEngine {
       if (pi.employment > 0) outflowFundingSources.push({ label: `${p.name} — Employment`, amount: pi.employment });
       if (pi.ss > 0)         outflowFundingSources.push({ label: `${p.name} — Social Security`, amount: pi.ss });
     });
-    accountWithdrawalDetails.forEach(d   => outflowFundingSources.push({ label: d.label, amount: d.amount }));
+    accountWithdrawalDetails.forEach(d  => outflowFundingSources.push({ label: d.label, amount: d.amount }));
+    savingsWithdrawalDetails.forEach(d  => outflowFundingSources.push({ label: d.label, amount: d.amount }));
     brokerageWithdrawalDetails.forEach(d => outflowFundingSources.push({ label: d.label, amount: d.amount }));
     if (propertySaleIncome > 0) outflowFundingSources.push({ label: 'Property Sale Proceeds', amount: propertySaleIncome });
 
@@ -688,6 +740,16 @@ export class ProjectionEngine {
         tag:       'Brokerage',
         costBasis: bv.costBasis || 0,
         gain:      bv.balance - prevBal,
+      });
+    });
+    savingsAccts.forEach(sav => {
+      const sv      = nextSavValues[sav.id] || { balance: 0 };
+      const prevBal = (savValues[sav.id]    || { balance: 0 }).balance;
+      if (sv.balance > 0) netWorthDetail.push({
+        label:  sav.name,
+        amount: sv.balance,
+        tag:    'Savings',
+        gain:   sv.balance - prevBal,
       });
     });
     propertyAssets.forEach(prop => {
@@ -736,6 +798,7 @@ export class ProjectionEngine {
       totalPropertyEquity,
       totalPropertyValue,
       totalBrokerageValue,
+      totalSavingsValue,
       netWorth,
 
       // Milestones
@@ -756,6 +819,7 @@ export class ProjectionEngine {
       _nextAccountBalances: nextAccBalances,
       _nextPropertyValues:  nextPropValues,
       _nextBrokerageValues: nextBrokValues,
+      _nextSavingsValues:   nextSavValues,
       _nextFtcCarryForward: newFtcCarryForward,
     };
   }
@@ -775,12 +839,12 @@ export class ProjectionEngine {
     return m;
   }
 
-  _emptyYear(year, accBalances, propValues, brokValues) {
+  _emptyYear(year, accBalances, propValues, brokValues, savValues) {
     return {
       year, isRetired: true, anyRetired: true, isPostMove: false, country: 'US',
       employmentIncome: 0, socialSecurityTotal: 0, accountWithdrawals: 0, propertySaleIncome: 0, totalIncome: 0,
       annualExpenses: 0, mortgageTotal: 0, usTax: 0, auTax: 0, estimatedTax: 0, totalOutflows: 0, netCashFlow: 0,
-      totalAccountValue: 0, totalPropertyEquity: 0, totalPropertyValue: 0, totalBrokerageValue: 0, netWorth: 0,
+      totalAccountValue: 0, totalPropertyEquity: 0, totalPropertyValue: 0, totalBrokerageValue: 0, totalSavingsValue: 0, netWorth: 0,
       milestones: [],
       incomeDetail: [],
       outflowDetail: [],
@@ -792,6 +856,7 @@ export class ProjectionEngine {
       _nextAccountBalances: accBalances,
       _nextPropertyValues:  propValues,
       _nextBrokerageValues: brokValues,
+      _nextSavingsValues:   savValues || {},
       _nextFtcCarryForward: 0,
     };
   }

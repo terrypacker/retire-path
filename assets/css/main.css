@@ -622,6 +622,7 @@ body {
 .badge-ira   { background: rgba(58,143,160,0.2); color: var(--accent-teal); }
 .badge-super { background: rgba(201,168,76,0.2); color: var(--accent-gold-light); }
 .badge-brokerage { background: rgba(192,69,90,0.15); color: var(--accent-red-light); }
+.badge-savings   { background: rgba(34,197,94,0.15);  color: #4ade80; }
 .badge-property { background: rgba(139,92,246,0.2); color: #a78bfa; }
 
 .account-value {
@@ -824,6 +825,7 @@ body {
 .cf-table td:nth-child(2), .cf-table td:nth-child(3) { text-align: right; }
 .cf-table td:nth-child(4) { text-align: left; font-family: 'IBM Plex Sans', sans-serif; font-size: 0.72rem; }
 .cf-note { color: var(--text-muted); font-size: 0.7rem; }
+.cf-forced-sale { background: rgba(239,68,68,0.15); color: #f87171; border-radius: 3px; padding: 1px 4px; }
 .cf-total-row td { font-weight: 700; border-top: 1px solid var(--border); color: var(--text-primary) !important; }
 .cf-amount { font-family: 'IBM Plex Mono', monospace; }
 .cf-pct { color: var(--text-muted); font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; }

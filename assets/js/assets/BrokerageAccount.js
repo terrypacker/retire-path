@@ -37,6 +37,7 @@ export class BrokerageAccount extends BaseAccount {
     this.moveValueBasis     = data.moveValueBasis     ?? null;
     this.isJointAccount     = data.isJointAccount     || false;
     this.ownerId            = data.ownerId            || 'person1';
+    this.priority           = data.priority           != null ? data.priority : 1;
   }
 
   // ── Ownership ──────────────────────────────────────────────────────────────

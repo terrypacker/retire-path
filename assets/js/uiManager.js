@@ -56,9 +56,11 @@ export class UIManager {
       document.getElementById('btn-new-account')?.addEventListener('click', () => this.openNewAccountModal());
       document.getElementById('btn-new-property')?.addEventListener('click', () => this.openNewPropertyModal());
       document.getElementById('btn-new-brokerage')?.addEventListener('click', () => this.openNewBrokerageModal());
-      document.getElementById('btn-save-account')?.addEventListener('click', () => this.saveAccountModal());
+      document.getElementById('btn-new-savings')?.addEventListener('click',   () => this.openNewSavingsModal());
+      document.getElementById('btn-save-account')?.addEventListener('click',  () => this.saveAccountModal());
       document.getElementById('btn-save-property')?.addEventListener('click', () => this.savePropertyModal());
       document.getElementById('btn-save-brokerage')?.addEventListener('click', () => this.saveBrokerageModal());
+      document.getElementById('btn-save-savings')?.addEventListener('click',  () => this.saveSavingsModal());
 
       // Event delegation for dynamically rendered list buttons
       const accountList = document.getElementById('account-list');
@@ -88,6 +90,15 @@ export class UIManager {
         if (action === 'remove') this.removeBrokerage(id);
       });
 
+      const savingsList = document.getElementById('savings-list');
+      if (savingsList) savingsList.addEventListener('click', e => {
+        const btn = e.target.closest('[data-action]');
+        if (!btn) return;
+        const { action, id } = btn.dataset;
+        if (action === 'edit')   this.openSavingsModal(id);
+        if (action === 'remove') this.removeSavings(id);
+      });
+
       // Event delegation for tax detail row expansion
       const modalBody = document.getElementById('cashflow-modal-body');
       if (modalBody) {
@@ -109,6 +120,7 @@ export class UIManager {
     this._renderAccountList();
     this._renderPropertyList();
     this._renderBrokerageList();
+    this._renderSavingsList();
   }
 
   // ── Navigation tabs ───────────────────────────────────────────────────────
@@ -521,11 +533,14 @@ export class UIManager {
     if (isIncome) {
       const rows = items.map(item => {
         const pct  = total > 0 ? ((item.amount / total) * 100).toFixed(1) : '0.0';
+        const forcedTag = item.isForcedSale
+          ? `<span class="cf-note cf-forced-sale">forced sale</span> `
+          : '';
         const note = item.gainWithdrawn > 0
-          ? `<span class="cf-note">${fmt(item.gainWithdrawn)} capital gain</span>`
+          ? `${forcedTag}<span class="cf-note">${fmt(item.gainWithdrawn)} capital gain</span>`
           : item.cgt > 0
-            ? `<span class="cf-note">CGT ${fmt(item.cgt)} on ${fmt(item.grossValue)} sale</span>`
-            : '';
+            ? `${forcedTag}<span class="cf-note">CGT ${fmt(item.cgt)} on ${fmt(item.grossValue)} sale</span>`
+            : forcedTag.trim();
         const dest = item.depositedTo
           ? `<span class="cf-dest">${item.depositedTo}</span>`
           : '<span class="cf-dest cf-dest-none">—</span>';
@@ -887,6 +902,30 @@ export class UIManager {
     });
   }
 
+  _renderSavingsList() {
+    const container = document.getElementById('savings-list');
+    if (!container) return;
+    const accounts = this._state.get('savingsAccounts') || [];
+    container.innerHTML = '';
+    accounts.forEach(s => {
+      const item = document.createElement('div');
+      item.className = 'account-item';
+      item.innerHTML = `
+        <div style="flex:1;min-width:0;">
+          <div class="account-name">${s.name}</div>
+          <span class="account-type-badge badge-savings">SAVINGS</span>
+          <span style="font-size:0.65rem;color:var(--text-muted);margin-left:4px;">min $${this._fmtShort(s.minimumBalance || 0)} · priority ${s.priority || 1}</span>
+        </div>
+        <span class="account-value">$${this._fmtShort(s.balance)}</span>
+        <div class="account-actions">
+          <button class="btn-sm" data-action="edit" data-id="${s.id}">Edit</button>
+          <button class="btn-sm danger" data-action="remove" data-id="${s.id}">×</button>
+        </div>
+      `;
+      container.appendChild(item);
+    });
+  }
+
   _fmtShort(n) { return fmtShort(n); }
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -1108,6 +1147,7 @@ export class UIManager {
       this._setField('brok-contribution', b.annualContribution || 0);
       this._setField('brok-growth', b.growthRate || 7);
       this._setField('brok-cost-basis', b.costBasis || 0);
+      this._setField('brok-priority', b.priority != null ? b.priority : 1);
       this._fillBrokerageOwnership(b.isJointAccount || false, b.ownerId || 'person1');
     }
     modal.classList.add('open');
@@ -1122,6 +1162,7 @@ export class UIManager {
     this._setField('brok-contribution', 0);
     this._setField('brok-growth', 7);
     this._setField('brok-cost-basis', 0);
+    this._setField('brok-priority', 1);
     this._fillBrokerageOwnership(false, 'person1');
     modal.classList.add('open');
   }
@@ -1163,6 +1204,7 @@ export class UIManager {
       currency:           this._getField('brok-country') === 'AUS' ? 'AUD' : 'USD',
       isJointAccount:     isJoint,
       ownerId:            isJoint ? null : this._getField('brok-owner'),
+      priority:           +this._getField('brok-priority') || 1,
     };
     if (id) this._state.updateBrokerage(id, data);
     else    this._state.addBrokerage(data);
@@ -1175,6 +1217,59 @@ export class UIManager {
     if (confirm('Remove this account?')) {
       this._state.removeBrokerage(id);
       this._renderBrokerageList();
+    }
+  }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // Savings Modal
+  // ══════════════════════════════════════════════════════════════════════════
+  openSavingsModal(id) {
+    const s = (this._state.get('savingsAccounts') || []).find(a => a.id === id);
+    const modal = document.getElementById('modal-overlay-savings');
+    if (!modal) return;
+    if (s) {
+      document.getElementById('sav-id').value = id;
+      this._setField('sav-name', s.name);
+      this._setField('sav-balance', s.balance || 0);
+      this._setField('sav-growth', s.growthRate != null ? s.growthRate : 4.5);
+      this._setField('sav-min-balance', s.minimumBalance || 0);
+      this._setField('sav-priority', s.priority != null ? s.priority : 1);
+    }
+    modal.classList.add('open');
+  }
+
+  openNewSavingsModal() {
+    const modal = document.getElementById('modal-overlay-savings');
+    if (!modal) return;
+    document.getElementById('sav-id').value = '';
+    this._setField('sav-name', '');
+    this._setField('sav-balance', 0);
+    this._setField('sav-growth', 4.5);
+    this._setField('sav-min-balance', 0);
+    this._setField('sav-priority', 1);
+    modal.classList.add('open');
+  }
+
+  saveSavingsModal() {
+    const id = document.getElementById('sav-id').value;
+    const data = {
+      name:           this._getField('sav-name'),
+      balance:        +this._getField('sav-balance'),
+      growthRate:     +this._getField('sav-growth'),
+      minimumBalance: +this._getField('sav-min-balance'),
+      priority:       +this._getField('sav-priority') || 1,
+    };
+    if (id) this._state.updateSavings(id, data);
+    else    this._state.addSavings(data);
+    this.closeModal('modal-overlay-savings');
+    this._renderSavingsList();
+    this.toast('Account saved', 'success');
+  }
+
+  removeSavings(id) {
+    if (confirm('Remove this account?')) {
+      this._state.removeSavings(id);
+      this._renderSavingsList();
     }
   }
 

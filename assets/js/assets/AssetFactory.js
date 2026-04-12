@@ -23,6 +23,7 @@ import { RothAccount          } from './accounts/RothAccount.js';
 import { TraditionalIRAAccount } from './accounts/TraditionalIRAAccount.js';
 import { SuperAccount         } from './accounts/SuperAccount.js';
 import { BrokerageAccount     } from './BrokerageAccount.js';
+import { SavingsAccount       } from './SavingsAccount.js';
 import { RealEstate           } from './RealEstate.js';
 import { Land                 } from './Land.js';
 
@@ -57,6 +58,16 @@ export class AssetFactory {
    */
   static wrapBrokerageAccount(pojo) {
     return new BrokerageAccount(pojo);
+  }
+
+  /**
+   * Wrap a savings-account POJO (from AppState savingsAccounts[]).
+   *
+   * @param {Object} pojo - AppState savingsAccounts[] entry
+   * @returns {SavingsAccount}
+   */
+  static wrapSavingsAccount(pojo) {
+    return new SavingsAccount(pojo);
   }
 
   /**

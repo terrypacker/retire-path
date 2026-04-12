@@ -354,11 +354,23 @@
           </button>
         </div>
 
+        <!-- Savings Accounts -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">Savings Accounts</div>
+            <div class="card-subtitle">Cash / HYSA — minimum balance protected from deficit sales</div>
+          </div>
+          <div id="savings-list" class="account-list"></div>
+          <button class="btn-add" id="btn-new-savings">
+            ＋ Add Savings Account
+          </button>
+        </div>
+
         <!-- Account Balances Chart -->
         <div class="card">
           <div class="card-header">
             <div class="card-title">Account Balances Over Time</div>
-            <div class="card-subtitle">Projected balance for each account — solid: retirement, dashed: brokerage, dotted: property equity</div>
+            <div class="card-subtitle">Projected balance for each account — solid: retirement, dashed: brokerage, dash-dot: savings, dotted: property equity</div>
           </div>
           <div class="chart-container" style="height:320px">
             <canvas id="chart-account-balances"></canvas>
@@ -804,6 +816,15 @@
           <input type="number" id="brok-growth" class="form-input mono" value="7" step="0.5">
         </div>
       </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Sale Priority</label>
+          <input type="number" id="brok-priority" class="form-input mono" value="1" step="1" min="1">
+          <small style="color:var(--text-muted);font-size:0.7rem;">
+            Lower number = sold first when a deficit triggers asset sales.
+          </small>
+        </div>
+      </div>
       <div class="form-group">
         <small style="color:var(--text-muted);font-size:0.7rem;">
           The value at your Australian move date is computed automatically from the projected balance
@@ -814,6 +835,59 @@
     <div class="modal-footer">
       <button class="btn btn-secondary" data-close-modal>Cancel</button>
       <button class="btn btn-primary" id="btn-save-brokerage">Save Account</button>
+    </div>
+  </div>
+</div>
+
+<!-- Savings Account Modal -->
+<div class="modal-overlay" id="modal-overlay-savings">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Savings Account</span>
+      <button class="modal-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="sav-id">
+      <div class="form-group">
+        <label class="form-label">Account Name</label>
+        <input type="text" id="sav-name" class="form-input" placeholder="e.g. Emergency Fund">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Current Balance</label>
+          <div class="input-prefix-wrap">
+            <span class="input-prefix">$</span>
+            <input type="number" id="sav-balance" class="form-input mono" value="0" step="1000">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Growth Rate %</label>
+          <input type="number" id="sav-growth" class="form-input mono" value="4.5" step="0.25">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Minimum Balance</label>
+          <div class="input-prefix-wrap">
+            <span class="input-prefix">$</span>
+            <input type="number" id="sav-min-balance" class="form-input mono" value="0" step="1000">
+          </div>
+          <small style="color:var(--text-muted);font-size:0.7rem;">
+            Balance below this floor is never used for deficit sales.
+          </small>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Draw Priority</label>
+          <input type="number" id="sav-priority" class="form-input mono" value="1" step="1" min="1">
+          <small style="color:var(--text-muted);font-size:0.7rem;">
+            Lower number = drawn first when covering a deficit.
+          </small>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" data-close-modal>Cancel</button>
+      <button class="btn btn-primary" id="btn-save-savings">Save Account</button>
     </div>
   </div>
 </div>

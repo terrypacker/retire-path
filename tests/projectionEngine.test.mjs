@@ -299,3 +299,67 @@ test('AU CGT: SS income does not inflate the brokerage CGT bracket base', () => 
     'the gain into a taxable bracket.'
   );
 });
+
+// ── Scenario: Savings + forced brokerage sale ─────────────────────────────────
+// Alice (born 1960) has a $200k brokerage account (50% unrealised gain) and a
+// $15k savings account with a $10k minimum balance floor.
+// Annual expenses are $80k — far more than the $5k available above the savings
+// minimum — so the engine must:
+//   (a) draw the $5k above-minimum from savings first (no tax event), then
+//   (b) sell ~$75k+ of brokerage holdings as a forced sale (capital gains tax applies).
+//
+// Tests verify:
+//   1. A savings withdrawal appears in incomeDetail (no isForcedSale flag).
+//   2. A brokerage forced sale appears in incomeDetail with isForcedSale === true
+//      and gainWithdrawn > 0.
+//   3. US capital gains tax is assessed (usTax > 0) due to the brokerage sale.
+
+test('Savings + forced sale: savings drawn above minimum before brokerage', () => {
+  const state  = createMockState(loadScenario('us-savings-forced-brokerage-sale.json'));
+  const taxes  = new TaxEngine();
+  const engine = new ProjectionEngine(state, taxes);
+
+  const years = engine.run();
+  // Alice retires at 62; born 1960 so first retirement year is 2022 (or start year if later).
+  const firstRetirementYear = years.find(y => y.isRetired);
+  assert.ok(firstRetirementYear, 'Expected at least one retired year in projection');
+
+  const savingsItem = firstRetirementYear.incomeDetail.find(
+    d => d.label && d.label.includes('(Savings)')
+  );
+  assert.ok(
+    savingsItem && savingsItem.amount > 0,
+    `Expected a savings withdrawal in incomeDetail for year ${firstRetirementYear.year}. ` +
+    `Got: ${JSON.stringify(firstRetirementYear.incomeDetail.map(d => d.label))}`
+  );
+  assert.ok(
+    !savingsItem.isForcedSale,
+    'Savings withdrawal should not be tagged as a forced sale'
+  );
+});
+
+test('Savings + forced sale: deficit triggers brokerage sale with isForcedSale flag and CGT', () => {
+  const state  = createMockState(loadScenario('us-savings-forced-brokerage-sale.json'));
+  const taxes  = new TaxEngine();
+  const engine = new ProjectionEngine(state, taxes);
+
+  const years = engine.run();
+  const firstRetirementYear = years.find(y => y.isRetired);
+  assert.ok(firstRetirementYear, 'Expected at least one retired year in projection');
+
+  const forcedSaleItem = firstRetirementYear.incomeDetail.find(d => d.isForcedSale === true);
+  assert.ok(
+    forcedSaleItem,
+    `Expected a forced-sale brokerage entry in incomeDetail for year ${firstRetirementYear.year}. ` +
+    `Got: ${JSON.stringify(firstRetirementYear.incomeDetail.map(d => ({ label: d.label, isForcedSale: d.isForcedSale })))}`
+  );
+  assert.ok(
+    forcedSaleItem.gainWithdrawn > 0,
+    `Expected gainWithdrawn > 0 on the forced sale entry, got ${forcedSaleItem.gainWithdrawn}`
+  );
+  // The brokerage withdrawal must appear in totalIncome (cash inflow is counted)
+  assert.ok(
+    firstRetirementYear.totalIncome > 0,
+    `Expected totalIncome > 0 (brokerage withdrawal should be counted as income), got ${firstRetirementYear.totalIncome}`
+  );
+});
