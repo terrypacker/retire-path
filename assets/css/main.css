@@ -827,6 +827,13 @@ body {
 .cf-total-row td { font-weight: 700; border-top: 1px solid var(--border); color: var(--text-primary) !important; }
 .cf-amount { font-family: 'IBM Plex Mono', monospace; }
 .cf-pct { color: var(--text-muted); font-family: 'IBM Plex Mono', monospace; font-size: 0.72rem; }
+/* Income modal — Deposited To column */
+.cf-dest { font-size: 0.72rem; color: var(--text-secondary); }
+.cf-dest-none { color: var(--text-muted); }
+/* Outflow modal — funding sources indent */
+.cf-funding-label { padding-left: 1.4rem !important; color: var(--text-secondary); font-size: 0.85rem; }
+/* Net worth modal — annual gain/loss column */
+.nw-gain { font-size: 0.82rem; font-family: 'IBM Plex Mono', monospace !important; text-align: right !important; }
 /* Net worth modal asset tags */
 .nw-tag { display: inline-block; font-size: 0.65rem; padding: 1px 6px; border-radius: 3px; font-weight: 500; vertical-align: middle; margin-left: 4px; }
 .nw-tag-401k, .nw-tag-ira, .nw-tag-roth { background: rgba(74,111,165,0.2); color: #6b91cc; }

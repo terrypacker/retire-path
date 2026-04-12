@@ -289,7 +289,7 @@ export class ProjectionEngine {
 
         withdrawalGapRemaining -= withdrawal;
         totalAccountWithdrawals += withdrawal;
-        accountWithdrawalDetails.push({ label: acc.getDisplayLabel(), amount: withdrawal });
+        accountWithdrawalDetails.push({ label: acc.getDisplayLabel(), amount: withdrawal, depositedTo: 'Expense Pool' });
       }
 
       nextAccBalances[acc.id] = { balance: Math.max(0, bal), contributions: Math.max(0, contributions), moveValueBasis };
@@ -312,7 +312,6 @@ export class ProjectionEngine {
         const cgt  = this._taxes.get('US', year).calcCapitalGainsTax(gain, employmentIncome, { year, holdingPeriodDays: 1000 });
         const netProceeds = value - mortgage - cgt.tax;
         propertySaleIncome += netProceeds;
-        propertySaleDetails.push({ label: `${prop.name} (Sale)`, amount: netProceeds, grossValue: value, mortgagePaid: mortgage, cgt: cgt.tax });
         nextPropValues[prop.id] = { value: 0, mortgage: 0 };
         // Route net proceeds into the chosen destination account (brokerage or retirement)
         const destId = prop.saleDestinationId ||
@@ -321,6 +320,9 @@ export class ProjectionEngine {
         if (destId) {
           pendingDeposits[destId] = (pendingDeposits[destId] || 0) + netProceeds;
         }
+        const destAcct    = [...brokerageAccts, ...retirementAccts].find(a => a.id === destId);
+        const depositedTo = destAcct ? destAcct.name : (destId ? 'Account' : '—');
+        propertySaleDetails.push({ label: `${prop.name} (Sale)`, amount: netProceeds, grossValue: value, mortgagePaid: mortgage, cgt: cgt.tax, depositedTo });
         return;
       }
 
@@ -365,7 +367,7 @@ export class ProjectionEngine {
         brokerageGainWithdrawn += gainWithdrawn;
         withdrawalGapRemaining -= withdrawal;
         totalAccountWithdrawals += withdrawal;
-        brokerageWithdrawalDetails.push({ label: brok.getDisplayLabel(), amount: withdrawal, gainWithdrawn });
+        brokerageWithdrawalDetails.push({ label: brok.getDisplayLabel(), amount: withdrawal, gainWithdrawn, depositedTo: 'Expense Pool' });
 
         // Post-move: AU CGT on gains accrued after becoming Australian resident.
         // Split gain by ownership and compute each owner's CGT at their own marginal rate.
@@ -633,8 +635,8 @@ export class ProjectionEngine {
     const incomeDetail = [];
     people.forEach(p => {
       const pi = personIncome[p.id];
-      if (pi.employment > 0) incomeDetail.push({ label: `${p.name} — Employment`, amount: pi.employment });
-      if (pi.ss > 0)         incomeDetail.push({ label: `${p.name} — Social Security`, amount: pi.ss });
+      if (pi.employment > 0) incomeDetail.push({ label: `${p.name} — Employment`, amount: pi.employment, depositedTo: 'Expense Pool' });
+      if (pi.ss > 0)         incomeDetail.push({ label: `${p.name} — Social Security`, amount: pi.ss, depositedTo: 'Expense Pool' });
     });
     accountWithdrawalDetails.forEach(d  => incomeDetail.push(d));
     brokerageWithdrawalDetails.forEach(d => incomeDetail.push(d));
@@ -646,35 +648,53 @@ export class ProjectionEngine {
     if (usTax > 0) outflowDetail.push({ label: '🇺🇸 US Tax', amount: usTax });
     if (auTax > 0) outflowDetail.push({ label: '🇦🇺 AU Tax', amount: auTax });
 
+    // Funding sources for the outflow drill-down — shows which income/assets paid for outflows
+    const outflowFundingSources = [];
+    people.forEach(p => {
+      const pi = personIncome[p.id];
+      if (pi.employment > 0) outflowFundingSources.push({ label: `${p.name} — Employment`, amount: pi.employment });
+      if (pi.ss > 0)         outflowFundingSources.push({ label: `${p.name} — Social Security`, amount: pi.ss });
+    });
+    accountWithdrawalDetails.forEach(d   => outflowFundingSources.push({ label: d.label, amount: d.amount }));
+    brokerageWithdrawalDetails.forEach(d => outflowFundingSources.push({ label: d.label, amount: d.amount }));
+    if (propertySaleIncome > 0) outflowFundingSources.push({ label: 'Property Sale Proceeds', amount: propertySaleIncome });
+
     // ── Net worth detail (for drill-down modal) ───────────────────────────────
     const netWorthDetail = [];
     retirementAccts.forEach(acc => {
-      const bal = (nextAccBalances[acc.id] || {}).balance || 0;
+      const bal     = (nextAccBalances[acc.id] || {}).balance || 0;
+      const prevBal = (accBalances[acc.id]     || {}).balance || 0;
       if (bal > 0) netWorthDetail.push({
         label:   acc.name,
         amount:  bal,
         tag:     acc.type.toUpperCase(),
         country: acc.country,
+        gain:    bal - prevBal,
       });
     });
     brokerageAccts.forEach(b => {
-      const bv = nextBrokValues[b.id] || { balance: 0, costBasis: 0 };
+      const bv      = nextBrokValues[b.id] || { balance: 0, costBasis: 0 };
+      const prevBal = (brokValues[b.id]    || { balance: 0 }).balance;
       if (bv.balance > 0) netWorthDetail.push({
         label:     b.name,
         amount:    bv.balance,
         tag:       'Brokerage',
         costBasis: bv.costBasis || 0,
+        gain:      bv.balance - prevBal,
       });
     });
     propertyAssets.forEach(prop => {
-      const pv     = nextPropValues[prop.id] || { value: 0, mortgage: 0 };
-      const equity = prop.getEquity(pv.value, pv.mortgage);
+      const pv         = nextPropValues[prop.id] || { value: 0, mortgage: 0 };
+      const prevPv     = propValues[prop.id]     || { value: 0, mortgage: 0 };
+      const equity     = prop.getEquity(pv.value, pv.mortgage);
+      const prevEquity = prop.getEquity(prevPv.value, prevPv.mortgage);
       if (pv.value > 0) netWorthDetail.push({
         label:        prop.name,
         amount:       equity,
         tag:          'Property',
         propValue:    pv.value,
         propMortgage: pv.mortgage,
+        gain:         equity - prevEquity,
       });
     });
 
@@ -717,6 +737,7 @@ export class ProjectionEngine {
       // Cash flow detail (for drill-down modal)
       incomeDetail,
       outflowDetail,
+      outflowFundingSources,
       usTaxDetail,
       auTaxDetail,
       netWorthDetail,
@@ -756,6 +777,7 @@ export class ProjectionEngine {
       milestones: [],
       incomeDetail: [],
       outflowDetail: [],
+      outflowFundingSources: [],
       usTaxDetail: [],
       auTaxDetail: [],
       netWorthDetail: [],

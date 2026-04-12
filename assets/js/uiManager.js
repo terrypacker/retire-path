@@ -518,34 +518,99 @@ export class UIManager {
 
     document.getElementById('cashflow-modal-title').textContent = title;
 
-    const rows = items.map(item => {
-      const pct = total > 0 ? ((item.amount / total) * 100).toFixed(1) : '0.0';
-      const note = item.gainWithdrawn > 0
-        ? `<span class="cf-note">${fmt(item.gainWithdrawn)} capital gain</span>`
-        : item.cgt > 0
-          ? `<span class="cf-note">CGT ${fmt(item.cgt)} on ${fmt(item.grossValue)} sale</span>`
-          : '';
-      return `<tr>
-        <td>${item.label}</td>
-        <td class="cf-amount">${fmt(item.amount)}</td>
-        <td class="cf-pct">${pct}%</td>
-        <td>${note}</td>
+    if (isIncome) {
+      const rows = items.map(item => {
+        const pct  = total > 0 ? ((item.amount / total) * 100).toFixed(1) : '0.0';
+        const note = item.gainWithdrawn > 0
+          ? `<span class="cf-note">${fmt(item.gainWithdrawn)} capital gain</span>`
+          : item.cgt > 0
+            ? `<span class="cf-note">CGT ${fmt(item.cgt)} on ${fmt(item.grossValue)} sale</span>`
+            : '';
+        const dest = item.depositedTo
+          ? `<span class="cf-dest">${item.depositedTo}</span>`
+          : '<span class="cf-dest cf-dest-none">—</span>';
+        return `<tr>
+          <td>${item.label}</td>
+          <td class="cf-amount">${fmt(item.amount)}</td>
+          <td class="cf-pct">${pct}%</td>
+          <td>${dest}</td>
+          <td>${note}</td>
+        </tr>`;
+      }).join('');
+
+      const totalRow = `<tr class="cf-total-row">
+        <td>Total</td>
+        <td class="cf-amount">${fmt(total)}</td>
+        <td class="cf-pct">100%</td>
+        <td></td><td></td>
       </tr>`;
-    }).join('');
 
-    const totalRow = `<tr class="cf-total-row">
-      <td>Total</td>
-      <td class="cf-amount">${fmt(total)}</td>
-      <td class="cf-pct">100%</td>
-      <td></td>
-    </tr>`;
+      document.getElementById('cashflow-modal-body').innerHTML = `
+        <table class="proj-table cf-table">
+          <thead><tr><th>Source</th><th>Amount</th><th>%</th><th>Deposited To</th><th>Notes</th></tr></thead>
+          <tbody>${rows}${totalRow}</tbody>
+        </table>
+      `;
+    } else {
+      const rows = items.map(item => {
+        const pct  = total > 0 ? ((item.amount / total) * 100).toFixed(1) : '0.0';
+        const note = item.label.includes('Mortgage')
+          ? `<span class="cf-note">property payment</span>`
+          : '';
+        return `<tr>
+          <td>${item.label}</td>
+          <td class="cf-amount">${fmt(item.amount)}</td>
+          <td class="cf-pct">${pct}%</td>
+          <td>${note}</td>
+        </tr>`;
+      }).join('');
 
-    document.getElementById('cashflow-modal-body').innerHTML = `
-      <table class="proj-table cf-table">
-        <thead><tr><th>Source</th><th>Amount</th><th>%</th><th>Notes</th></tr></thead>
-        <tbody>${rows}${totalRow}</tbody>
-      </table>
-    `;
+      const totalRow = `<tr class="cf-total-row">
+        <td>Total Outflows</td>
+        <td class="cf-amount">${fmt(total)}</td>
+        <td class="cf-pct">100%</td>
+        <td></td>
+      </tr>`;
+
+      // Funding sources section
+      const fundingSources = yd.outflowFundingSources || [];
+      const totalFunding   = fundingSources.reduce((s, f) => s + f.amount, 0);
+      const fundingRows    = fundingSources.map(f => {
+        const pct = totalFunding > 0 ? ((f.amount / totalFunding) * 100).toFixed(1) : '0.0';
+        return `<tr>
+          <td class="cf-funding-label">${f.label}</td>
+          <td class="cf-amount">${fmt(f.amount)}</td>
+          <td class="cf-pct">${pct}%</td>
+          <td></td>
+        </tr>`;
+      }).join('');
+
+      const netFlow = yd.netCashFlow ?? (totalFunding - total);
+      const netFlowClass = netFlow >= 0 ? 'pos' : 'neg';
+      const netFlowStr   = netFlow >= 0 ? `+${fmt(netFlow)}` : fmt(netFlow);
+
+      const fundingSection = fundingSources.length > 0 ? `
+        <tr class="cf-section-row"><td colspan="4">Funded By (Income Sources)</td></tr>
+        ${fundingRows}
+        <tr class="cf-total-row">
+          <td>Total Income</td>
+          <td class="cf-amount">${fmt(totalFunding)}</td>
+          <td></td><td></td>
+        </tr>
+        <tr class="cf-total-row">
+          <td>Net Cash Flow</td>
+          <td class="cf-amount"><span class="${netFlowClass}">${netFlowStr}</span></td>
+          <td></td><td></td>
+        </tr>
+      ` : '';
+
+      document.getElementById('cashflow-modal-body').innerHTML = `
+        <table class="proj-table cf-table">
+          <thead><tr><th>Expense</th><th>Amount</th><th>%</th><th>Notes</th></tr></thead>
+          <tbody>${rows}${totalRow}${fundingSection}</tbody>
+        </table>
+      `;
+    }
 
     modal.classList.add('open');
   }
@@ -656,8 +721,8 @@ export class UIManager {
     const total  = yd.netWorth;
 
     const rows = detail.map(item => {
-      const pct  = total > 0 ? ((item.amount / total) * 100).toFixed(1) : '0.0';
-      const flag = item.country === 'AUS' ? '🇦🇺 ' : item.tag === 'Property' || item.tag === 'Brokerage' ? '' : '🇺🇸 ';
+      const pct   = total > 0 ? ((item.amount / total) * 100).toFixed(1) : '0.0';
+      const flag  = item.country === 'AUS' ? '🇦🇺 ' : item.tag === 'Property' || item.tag === 'Brokerage' ? '' : '🇺🇸 ';
       const badge = `<span class="nw-tag nw-tag-${item.tag.toLowerCase().replace(/\s+/g, '-')}">${flag}${item.tag}</span>`;
 
       let note = '';
@@ -674,28 +739,43 @@ export class UIManager {
         note = `<span class="cf-note">cost basis ${fmt(item.costBasis)}, unrealised gain ${gainStr}</span>`;
       }
 
+      let gainCell = '<td>—</td>';
+      if (item.gain != null) {
+        const g = item.gain;
+        gainCell = g >= 0
+          ? `<td class="cf-amount nw-gain pos">+${fmt(g)}</td>`
+          : `<td class="cf-amount nw-gain neg">${fmt(g)}</td>`;
+      }
+
       return `<tr>
         <td>${item.label} ${badge}</td>
         <td class="cf-amount">${fmt(item.amount)}</td>
         <td class="cf-pct">${pct}%</td>
+        ${gainCell}
         <td>${note}</td>
       </tr>`;
     }).join('');
 
     const emptyRow = detail.length === 0
-      ? `<tr><td colspan="4" style="text-align:center;color:#8a94b0;padding:16px;">No assets this year</td></tr>`
+      ? `<tr><td colspan="5" style="text-align:center;color:#8a94b0;padding:16px;">No assets this year</td></tr>`
       : '';
+
+    const totalGain = detail.reduce((s, item) => s + (item.gain ?? 0), 0);
+    const totalGainStr = totalGain >= 0
+      ? `<span class="pos">+${fmt(totalGain)}</span>`
+      : `<span class="neg">${fmt(totalGain)}</span>`;
 
     const totalRow = `<tr class="cf-total-row">
       <td>Total Net Worth</td>
       <td class="cf-amount">${fmt(total)}</td>
       <td class="cf-pct">100%</td>
+      <td class="cf-amount">${totalGainStr}</td>
       <td></td>
     </tr>`;
 
     document.getElementById('cashflow-modal-body').innerHTML = `
       <table class="proj-table cf-table">
-        <thead><tr><th>Asset</th><th>Value</th><th>%</th><th>Notes</th></tr></thead>
+        <thead><tr><th>Asset</th><th>Value</th><th>%</th><th>Annual Gain/Loss</th><th>Notes</th></tr></thead>
         <tbody>${emptyRow}${rows}${totalRow}</tbody>
       </table>
     `;
