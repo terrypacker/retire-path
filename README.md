@@ -153,9 +153,45 @@ The entire calculation pipeline is synchronous. No Promises, no async/await in t
 - **No frameworks** — do not introduce React, Vue, etc.
 - **No npm/package.json** — all dependencies remain CDN-loaded.
 - **HTTP server required for local dev** — ES6 modules are blocked by browsers on `file://` origins.
-- **No automated tests exist** — manual browser testing is the current practice.
+- **Tests use Node.js only** — no npm, no build tools. Node.js is needed only for the test runner.
 - **Deterministic only** — the projection engine is intentionally deterministic (no Monte Carlo). Do not add stochastic modeling without discussion.
 - **Tax modules are country+year-specific** — each module represents one jurisdiction and one base year. The engine selects the best available module (highest year ≤ projection year) and inflates brackets forward from there. US modules carry 2024 and 2025 MFJ rates; AU modules carry FY2024-25 and FY2025-26 rates.
+
+---
+
+## Testing
+
+Tests live in `tests/` and use the Node.js built-in `node:test` runner — no npm, no external dependencies. Test files use the `.mjs` extension to enable ES6 modules without a `package.json`.
+
+### First-time setup (once per machine / after a Homebrew icu4c upgrade)
+
+```sh
+make setup
+```
+
+This installs or repairs Node.js via nvm (if present) or Homebrew. The required Node version is pinned in `.nvmrc` (currently `22`).
+
+### Running tests
+
+```sh
+make test
+```
+
+Or directly:
+
+```sh
+node --test tests/projectionEngine.test.mjs
+```
+
+### Adding tests
+
+| File | Purpose |
+|------|---------|
+| `tests/projectionEngine.test.mjs` | Year-by-year projection correctness |
+| `tests/helpers/mockState.mjs` | Wraps a JSON scenario into the interface `ProjectionEngine` expects |
+| `tests/scenarios/*.json` | Deterministic scenario configs (load one, verify outputs) |
+
+To add a new scenario: create a `.json` file in `tests/scenarios/` mirroring the `appState` structure, then import and run it in a test file.
 
 ---
 

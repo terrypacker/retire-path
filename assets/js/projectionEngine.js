@@ -198,6 +198,7 @@ export class ProjectionEngine {
     let withdrawalGapRemaining     = expenseGap;
     let brokerageAUCGTTotalAUD     = 0;  // AU CGT in AUD (AU brackets applied to AUD amounts)
     let brokerageGainWithdrawn     = 0;
+    let totalBrokerageWithdrawals  = 0;  // full brokerage cash out (basis + gain) for cash-flow tracking
     const accountWithdrawalDetails   = [];
     const brokerageWithdrawalDetails = [];
     const usPenaltyDetails           = [];  // line items for US tax detail
@@ -364,7 +365,8 @@ export class ProjectionEngine {
           brok.calculateWithdrawal(balance, costBasis, withdrawalGapRemaining);
         balance   = newBalance;
         costBasis = newCostBasis;
-        brokerageGainWithdrawn += gainWithdrawn;
+        brokerageGainWithdrawn    += gainWithdrawn;
+        totalBrokerageWithdrawals += withdrawal;
         withdrawalGapRemaining -= withdrawal;
         totalAccountWithdrawals += withdrawal;
         brokerageWithdrawalDetails.push({ label: brok.getDisplayLabel(), amount: withdrawal, gainWithdrawn, depositedTo: 'Expense Pool' });
@@ -420,7 +422,10 @@ export class ProjectionEngine {
     });
 
     // ── Tax estimate ──────────────────────────────────────────────────────────
-    const totalIncome = employmentIncome + socialSecurityTotal + usTaxableWithdrawals + propertySaleIncome;
+    // ordinaryTaxableIncome: income subject to ordinary US brackets (excludes brokerage — gains are CGT, basis return is not taxed)
+    const ordinaryTaxableIncome = employmentIncome + socialSecurityTotal + usTaxableWithdrawals + propertySaleIncome;
+    // totalIncome: full cash inflows including brokerage basis returns (used for cash-flow / net-worth calculations)
+    const totalIncome = ordinaryTaxableIncome + totalBrokerageWithdrawals;
     let usTax = 0;
     let auTax = 0;
     const fxRate = s.fxRate || 1.58;  // 1 USD = fxRate AUD
@@ -432,15 +437,14 @@ export class ProjectionEngine {
     // For post-move years this is the GROSS US liability; Foreign Tax Credit is applied below.
     let usCGTResult = { tax: 0 };
     let grossUSTax = 0;
-    if (totalIncome > 0) {
-      const ordinaryIncome = totalIncome - brokerageGainWithdrawn;
-      const usResult = this._taxes.get('US', year).calcIncomeTax(ordinaryIncome, {
+    if (ordinaryTaxableIncome > 0 || brokerageGainWithdrawn > 0) {
+      const usResult = this._taxes.get('US', year).calcIncomeTax(ordinaryTaxableIncome, {
         year, filingStatus: 'mfj', isRetired: allRetired,
       });
       grossUSTax = usResult.tax;
       if (brokerageGainWithdrawn > 0) {
         usCGTResult = this._taxes.get('US', year).calcCapitalGainsTax(
-          brokerageGainWithdrawn, ordinaryIncome,
+          brokerageGainWithdrawn, ordinaryTaxableIncome,
           { year, holdingPeriodDays: 400, isResident: true }
         );
         grossUSTax += usCGTResult.tax;
@@ -456,7 +460,7 @@ export class ProjectionEngine {
         usTaxableWithdrawalSources.forEach(src => usSources.push(src));
         if (propertySaleIncome > 0) usSources.push({ label: 'Property Sale Proceeds', amount: propertySaleIncome });
         if (usSources.length > 0) {
-          usSources.push({ label: 'Total Ordinary Income', amount: ordinaryIncome, isSummary: true });
+          usSources.push({ label: 'Total Ordinary Income', amount: ordinaryTaxableIncome, isSummary: true });
           usSources.push({ label: 'Standard Deduction', amount: -usResult.stdDeduction, isSummary: true });
         }
         usTaxDetail.push({

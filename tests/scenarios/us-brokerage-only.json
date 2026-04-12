@@ -1,0 +1,43 @@
+{
+  "_comment": "Single retired US person with only a US brokerage account. No retirement accounts, no SS, no employment. Used to test that brokerage withdrawals appear in totalIncome.",
+  "currency": "USD",
+  "fxRate": 1.58,
+  "taxBaseYear": 2025,
+  "people": [
+    {
+      "id": "person1",
+      "name": "Alice",
+      "birthYear": 1960,
+      "retirementAge": 62,
+      "lifeExpectancy": 90,
+      "socialSecurityAge": 70,
+      "socialSecurityMonthly": 0,
+      "isCitizen": "us",
+      "annualIncome": 0
+    }
+  ],
+  "moveToAustraliaYear": 2060,
+  "moveEnabled": false,
+  "inflationUS": 3.0,
+  "inflationAUS": 3.0,
+  "accounts": [],
+  "properties": [],
+  "brokerageAccounts": [
+    {
+      "id": "brok1",
+      "name": "US Brokerage",
+      "country": "US",
+      "balance": 1000000,
+      "currency": "USD",
+      "annualContribution": 0,
+      "growthRate": 7.0,
+      "costBasis": 500000,
+      "isJointAccount": false,
+      "ownerId": "person1"
+    }
+  ],
+  "currentAnnualExpenses": 60000,
+  "retirementExpenseRatio": 1.0,
+  "australiaExpenseRatio": 1.0,
+  "targetEndBalance": 0
+}
