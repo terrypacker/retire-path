@@ -834,6 +834,22 @@ body {
 .nw-tag-brokerage { background: rgba(61,158,114,0.15); color: var(--accent-green-light); }
 .nw-tag-property { background: rgba(192,69,90,0.15); color: var(--accent-red-light); }
 
+/* ── Projection table CSV export button ── */
+.btn-export-csv {
+  margin-left: auto;
+  padding: 3px 10px;
+  font-size: 0.72rem;
+  font-family: 'IBM Plex Sans', sans-serif;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.btn-export-csv:hover { border-color: var(--accent-blue); color: var(--accent-blue-light); }
+
 /* Tax breakdown modal — 3-column variant */
 .cf-table-tax td:nth-child(2) { text-align: right; }
 .cf-table-tax td:nth-child(3) { text-align: left; font-size: 0.72rem; color: var(--text-muted); }

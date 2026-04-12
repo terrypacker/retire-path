@@ -329,6 +329,69 @@ export class UIManager {
       reader.readAsText(file);
       jsonFileInput.value = '';
     });
+
+    document.getElementById('btn-export-csv')?.addEventListener('click', () => this._downloadProjectionCSV());
+  }
+
+  // ── Projection CSV Export ─────────────────────────────────────────────────
+  _downloadProjectionCSV() {
+    const s   = this._state;
+    const sym = s.getCurrencySymbol();
+    const c   = v => Math.round(s.toDisplayCurrency(v || 0));
+
+    const years = Object.values(this._projectionByYear).sort((a, b) => a.year - b.year);
+    if (years.length === 0) { this.toast('No projection data to export', 'warning'); return; }
+
+    const headers = [
+      'Year', 'Country', 'Retired', 'Post-Move',
+      `Employment Income (${sym})`, `Social Security (${sym})`,
+      `Account Withdrawals (${sym})`, `Property Sale Income (${sym})`,
+      `Total Income (${sym})`, `Annual Expenses (${sym})`,
+      `Mortgage Total (${sym})`, `US Tax (${sym})`, `AU Tax (${sym})`,
+      `Estimated Tax (${sym})`, `Total Outflows (${sym})`,
+      `Net Cash Flow (${sym})`, `Total Accounts (${sym})`,
+      `Total Property Value (${sym})`, `Total Property Equity (${sym})`,
+      `Total Brokerage (${sym})`, `Net Worth (${sym})`, 'Milestones',
+    ];
+
+    const esc = v => {
+      const str = String(v ?? '');
+      return (str.includes(',') || str.includes('"') || str.includes('\n'))
+        ? `"${str.replace(/"/g, '""')}"` : str;
+    };
+
+    const rows = years.map(yd => [
+      yd.year,
+      yd.isPostMove ? 'AUS' : 'US',
+      yd.isRetired  ? 'Yes' : 'No',
+      yd.isPostMove ? 'Yes' : 'No',
+      c(yd.employmentIncome),
+      c(yd.socialSecurityTotal),
+      c(yd.accountWithdrawals),
+      c(yd.propertySaleIncome),
+      c(yd.totalIncome),
+      c(yd.annualExpenses),
+      c(yd.mortgageTotal),
+      c(yd.usTax),
+      c(yd.auTax),
+      c(yd.estimatedTax),
+      c(yd.totalOutflows),
+      c(yd.netCashFlow),
+      c(yd.totalAccountValue),
+      c(yd.totalPropertyValue),
+      c(yd.totalPropertyEquity),
+      c(yd.totalBrokerageValue),
+      c(yd.netWorth),
+      (yd.milestones || []).join('; '),
+    ].map(esc).join(','));
+
+    const csv  = [headers.join(','), ...rows].join('\r\n');
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = 'retire-path-projection.csv'; a.click();
+    URL.revokeObjectURL(url);
+    this.toast('Projection exported as CSV', 'success');
   }
 
   // ── Save / Load ───────────────────────────────────────────────────────────
