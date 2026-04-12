@@ -715,6 +715,22 @@
           Net proceeds (after mortgage payoff &amp; CGT) are deposited here in the sale year. Only relevant if a sale year is set.
         </small>
       </div>
+      <div class="form-group">
+        <label class="form-label">Ownership</label>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" id="prop-p1-label">Person 1 %</label>
+            <input type="number" id="prop-owner1-pct" class="form-input mono" value="100" min="0" max="100" step="1">
+          </div>
+          <div class="form-group">
+            <label class="form-label" id="prop-p2-label">Person 2 %</label>
+            <input type="number" id="prop-owner2-pct" class="form-input mono" value="0" min="0" max="100" step="1">
+          </div>
+        </div>
+        <small style="color:var(--text-muted);font-size:0.7rem;">
+          Percentages must sum to 100. Australia taxes individuals separately — ownership determines each person's AU tax liability.
+        </small>
+      </div>
     </div>
     <div class="modal-footer">
       <button class="btn btn-secondary" data-close-modal>Cancel</button>
@@ -741,6 +757,21 @@
         <select id="brok-country" class="form-select">
           <option value="US">🇺🇸 United States</option>
           <option value="AUS">🇦🇺 Australia</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label checkbox-label" style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+          <input type="checkbox" id="brok-joint" style="width:auto;margin:0;">
+          <span>Joint Account — split 50/50 between both people</span>
+        </label>
+        <small style="color:var(--text-muted);font-size:0.7rem;">
+          Australia taxes individuals separately; ownership determines each person's AU CGT liability.
+        </small>
+      </div>
+      <div class="form-group" id="brok-owner-group">
+        <label class="form-label">Owner</label>
+        <select id="brok-owner" class="form-select">
+          <!-- populated dynamically from people in state -->
         </select>
       </div>
       <div class="form-row">

@@ -35,6 +35,24 @@ export class BrokerageAccount extends BaseAccount {
     this.annualContribution = data.annualContribution || 0;
     this.costBasis          = data.costBasis          || 0;
     this.moveValueBasis     = data.moveValueBasis     ?? null;
+    this.isJointAccount     = data.isJointAccount     || false;
+    this.ownerId            = data.ownerId            || 'person1';
+  }
+
+  // ── Ownership ──────────────────────────────────────────────────────────────
+
+  /**
+   * Return ownership shares for AU tax attribution.
+   * Joint accounts split 50/50 across all people; otherwise 100% to ownerId.
+   * @param {Array<{id: string}>} people - people array from AppState
+   * @returns {Array<{personId: string, pct: number}>}
+   */
+  getOwnershipShares(people) {
+    if (this.isJointAccount) {
+      const share = 1 / people.length;
+      return people.map(p => ({ personId: p.id, pct: share }));
+    }
+    return [{ personId: this.ownerId || people[0].id, pct: 1.0 }];
   }
 
   // ── Contributions ─────────────────────────────────────────────────────────

@@ -37,6 +37,17 @@ export class Land extends BaseAsset {
     this.costBasis         = data.costBasis         || 0;
     this.plannedSaleYear   = data.plannedSaleYear   ?? null;
     this.saleDestinationId = data.saleDestinationId ?? null;
+    this.owners            = data.owners || [{ personId: 'person1', ownershipPct: 100 }];
+  }
+
+  // ── Ownership ──────────────────────────────────────────────────────────────
+
+  /**
+   * Return ownership shares for AU tax attribution.
+   * @returns {Array<{personId: string, pct: number}>}
+   */
+  getOwnershipShares() {
+    return this.owners.map(o => ({ personId: o.personId, pct: o.ownershipPct / 100 }));
   }
 
   // ── Initialization ────────────────────────────────────────────────────────

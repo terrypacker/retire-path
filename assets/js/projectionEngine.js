@@ -352,18 +352,26 @@ export class ProjectionEngine {
         totalAccountWithdrawals += withdrawal;
         brokerageWithdrawalDetails.push({ label: brok.getDisplayLabel(), amount: withdrawal, gainWithdrawn });
 
-        // Post-move: AU CGT on gains accrued after becoming Australian resident
+        // Post-move: AU CGT on gains accrued after becoming Australian resident.
+        // Split gain by ownership and compute each owner's CGT at their own marginal rate.
         if (isPostMove) {
           const auMod = this._taxes.get('AUS', year);
           const { auTaxableGain } = auMod.calcBrokerageAUGain(
             withdrawal, preWithdrawalBalance, brokMVB, preWithdrawalCostBasis
           );
           if (auTaxableGain > 0) {
-            brokerageAUCGTTotal += auMod.calcCapitalGainsTax(
-              auTaxableGain,
-              employmentIncome + socialSecurityTotal,
-              { year, holdingPeriodDays: 400, isResident: true }
-            ).tax;
+            const ownerShares = brok.getOwnershipShares(people);
+            ownerShares.forEach(({ personId, pct }) => {
+              const personGain = auTaxableGain * pct;
+              if (personGain <= 0) return;
+              const pInc = personIncome[personId] || { employment: 0, ss: 0, withdrawals: 0 };
+              const personBaseIncome = pInc.employment + pInc.ss + pInc.withdrawals;
+              brokerageAUCGTTotal += auMod.calcCapitalGainsTax(
+                personGain,
+                personBaseIncome,
+                { year, holdingPeriodDays: 400, isResident: true }
+              ).tax;
+            });
           }
         }
       }

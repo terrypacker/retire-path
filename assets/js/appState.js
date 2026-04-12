@@ -143,6 +143,7 @@ export class AppState {
           plannedSaleYear: null,
           costBasis: 420000,
           saleDestinationId: null,
+          owners: [{ personId: 'person1', ownershipPct: 100 }],
         }
       ],
 
@@ -157,6 +158,8 @@ export class AppState {
           annualContribution: 12000,
           growthRate: 7.0,
           costBasis: 38000,
+          isJointAccount: false,
+          ownerId: 'person1',
         }
       ],
 

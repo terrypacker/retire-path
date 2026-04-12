@@ -677,19 +677,27 @@ export class UIManager {
   _renderPropertyList() {
     const container = document.getElementById('property-list');
     if (!container) return;
-    const props = this._state.get('properties');
+    const props  = this._state.get('properties');
+    const people = this._state.get('people');
     container.innerHTML = '';
     props.forEach(prop => {
       const item = document.createElement('div');
       item.className = 'account-item';
-      const flag = prop.country === 'AUS' ? '🇦🇺' : '🇺🇸';
+      const flag   = prop.country === 'AUS' ? '🇦🇺' : '🇺🇸';
       const equity = prop.currentValue - prop.mortgageBalance;
-      const sym = prop.currency === 'AUD' ? 'A$' : '$';
+      const sym    = prop.currency === 'AUD' ? 'A$' : '$';
+      const owners = prop.owners || [];
+      const ownerLabel = owners.map(o => {
+        const person = people.find(p => p.id === o.personId);
+        const name   = person ? person.name : o.personId;
+        return o.ownershipPct < 100 ? `${name} ${o.ownershipPct}%` : name;
+      }).join(' / ');
       item.innerHTML = `
         <span class="account-flag">${flag}</span>
         <div style="flex:1;min-width:0;">
           <div class="account-name">${prop.name}</div>
           <span class="account-type-badge badge-property">PROPERTY</span>
+          ${ownerLabel ? `<span style="font-size:0.65rem;color:var(--text-muted);margin-left:4px;">${ownerLabel}</span>` : ''}
         </div>
         <span class="account-value">${sym}${this._fmtShort(equity)} equity</span>
         <div class="account-actions">
@@ -704,18 +712,27 @@ export class UIManager {
   _renderBrokerageList() {
     const container = document.getElementById('brokerage-list');
     if (!container) return;
-    const broks = this._state.get('brokerageAccounts');
+    const broks  = this._state.get('brokerageAccounts');
+    const people = this._state.get('people');
     container.innerHTML = '';
     broks.forEach(b => {
       const item = document.createElement('div');
       item.className = 'account-item';
       const flag = b.country === 'AUS' ? '🇦🇺' : '🇺🇸';
-      const sym = b.currency === 'AUD' ? 'A$' : '$';
+      const sym  = b.currency === 'AUD' ? 'A$' : '$';
+      let ownerLabel;
+      if (b.isJointAccount) {
+        ownerLabel = 'Joint (50/50)';
+      } else {
+        const owner = people.find(p => p.id === b.ownerId);
+        ownerLabel  = owner ? owner.name : '';
+      }
       item.innerHTML = `
         <span class="account-flag">${flag}</span>
         <div style="flex:1;min-width:0;">
           <div class="account-name">${b.name}</div>
           <span class="account-type-badge badge-brokerage">BROKERAGE</span>
+          ${ownerLabel ? `<span style="font-size:0.65rem;color:var(--text-muted);margin-left:4px;">${ownerLabel}</span>` : ''}
         </div>
         <span class="account-value">${sym}${this._fmtShort(b.balance)}</span>
         <div class="account-actions">
@@ -861,6 +878,7 @@ export class UIManager {
       this._setField('prop-cost-basis', prop.costBasis || 0);
       this._setField('prop-sale-year', prop.plannedSaleYear || '');
       this._populateSaleDestination(prop.saleDestinationId);
+      this._fillPropertyOwnership(prop.owners || [{ personId: 'person1', ownershipPct: 100 }]);
     }
     modal.classList.add('open');
   }
@@ -877,22 +895,48 @@ export class UIManager {
     this._setField('prop-cost-basis', 0);
     this._setField('prop-sale-year', '');
     this._populateSaleDestination(null);
+    this._fillPropertyOwnership([{ personId: 'person1', ownershipPct: 100 }]);
     modal.classList.add('open');
   }
 
+  _fillPropertyOwnership(owners) {
+    const people = this._state.get('people');
+    const p1     = people[0];
+    const p2     = people[1];
+
+    const label1 = document.getElementById('prop-p1-label');
+    const label2 = document.getElementById('prop-p2-label');
+    if (label1) label1.textContent = (p1 ? p1.name : 'Person 1') + ' %';
+    if (label2) label2.textContent = (p2 ? p2.name : 'Person 2') + ' %';
+
+    const p1Owner = owners.find(o => o.personId === (p1 && p1.id));
+    const p2Owner = owners.find(o => o.personId === (p2 && p2.id));
+    this._setField('prop-owner1-pct', p1Owner ? p1Owner.ownershipPct : 100);
+    this._setField('prop-owner2-pct', p2Owner ? p2Owner.ownershipPct : 0);
+  }
+
   savePropertyModal() {
-    const id = document.getElementById('prop-id').value;
+    const id      = document.getElementById('prop-id').value;
+    const people  = this._state.get('people');
+    const pct1    = +(this._getField('prop-owner1-pct') || 0);
+    const pct2    = +(this._getField('prop-owner2-pct') || 0);
+    const owners  = [];
+    if (people[0] && pct1 > 0) owners.push({ personId: people[0].id, ownershipPct: pct1 });
+    if (people[1] && pct2 > 0) owners.push({ personId: people[1].id, ownershipPct: pct2 });
+    if (owners.length === 0)    owners.push({ personId: (people[0] && people[0].id) || 'person1', ownershipPct: 100 });
+
     const data = {
-      name: this._getField('prop-name'),
-      country: this._getField('prop-country'),
-      currentValue: +this._getField('prop-value'),
-      mortgageBalance: +this._getField('prop-mortgage'),
-      monthlyMortgage: +this._getField('prop-monthly-mortgage'),
+      name:             this._getField('prop-name'),
+      country:          this._getField('prop-country'),
+      currentValue:     +this._getField('prop-value'),
+      mortgageBalance:  +this._getField('prop-mortgage'),
+      monthlyMortgage:  +this._getField('prop-monthly-mortgage'),
       appreciationRate: +this._getField('prop-appreciation'),
-      costBasis: +this._getField('prop-cost-basis'),
-      plannedSaleYear: this._getField('prop-sale-year') ? +this._getField('prop-sale-year') : null,
-      currency: this._getField('prop-country') === 'AUS' ? 'AUD' : 'USD',
+      costBasis:        +this._getField('prop-cost-basis'),
+      plannedSaleYear:  this._getField('prop-sale-year') ? +this._getField('prop-sale-year') : null,
+      currency:         this._getField('prop-country') === 'AUS' ? 'AUD' : 'USD',
       saleDestinationId: this._getField('prop-sale-destination') || null,
+      owners,
     };
     if (id) this._state.updateProperty(id, data);
     else    this._state.addProperty(data);
@@ -921,6 +965,7 @@ export class UIManager {
       this._setField('brok-contribution', b.annualContribution || 0);
       this._setField('brok-growth', b.growthRate || 7);
       this._setField('brok-cost-basis', b.costBasis || 0);
+      this._fillBrokerageOwnership(b.isJointAccount || false, b.ownerId || 'person1');
     }
     modal.classList.add('open');
   }
@@ -934,11 +979,37 @@ export class UIManager {
     this._setField('brok-contribution', 0);
     this._setField('brok-growth', 7);
     this._setField('brok-cost-basis', 0);
+    this._fillBrokerageOwnership(false, 'person1');
     modal.classList.add('open');
   }
 
+  _fillBrokerageOwnership(isJoint, ownerId) {
+    const people     = this._state.get('people');
+    const jointEl    = document.getElementById('brok-joint');
+    const ownerEl    = document.getElementById('brok-owner');
+    const ownerGroup = document.getElementById('brok-owner-group');
+
+    if (ownerEl) {
+      ownerEl.innerHTML = people.map(p =>
+        `<option value="${p.id}">${p.name}</option>`
+      ).join('');
+      ownerEl.value = ownerId || (people[0] && people[0].id) || 'person1';
+    }
+
+    if (jointEl) {
+      jointEl.checked = isJoint;
+      if (ownerGroup) ownerGroup.style.display = isJoint ? 'none' : '';
+      // Wire the toggle (safe to re-attach each open because we replace the element reference)
+      jointEl.onchange = () => {
+        if (ownerGroup) ownerGroup.style.display = jointEl.checked ? 'none' : '';
+      };
+    }
+  }
+
   saveBrokerageModal() {
-    const id = document.getElementById('brok-id').value;
+    const id       = document.getElementById('brok-id').value;
+    const jointEl  = document.getElementById('brok-joint');
+    const isJoint  = jointEl ? jointEl.checked : false;
     const data = {
       name:               this._getField('brok-name'),
       country:            this._getField('brok-country'),
@@ -947,6 +1018,8 @@ export class UIManager {
       growthRate:         +this._getField('brok-growth'),
       costBasis:          +this._getField('brok-cost-basis'),
       currency:           this._getField('brok-country') === 'AUS' ? 'AUD' : 'USD',
+      isJointAccount:     isJoint,
+      ownerId:            isJoint ? null : this._getField('brok-owner'),
     };
     if (id) this._state.updateBrokerage(id, data);
     else    this._state.addBrokerage(data);
