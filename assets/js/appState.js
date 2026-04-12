@@ -169,6 +169,9 @@ export class AppState {
         {
           id: 'sav1',
           name: 'Emergency Fund',
+          country: 'US',
+          currency: 'USD',
+          ownerId: null,
           balance: 30000,
           growthRate: 4.5,
           minimumBalance: 10000,

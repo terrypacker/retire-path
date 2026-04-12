@@ -22,6 +22,9 @@ import { BaseAccount } from './BaseAccount.js';
 /**
  * SavingsAccount.js
  * Cash / HYSA savings account. Grows at growthRate each year.
+ * NOTE: The `growthRate` field (inherited from BaseAccount) is used as the
+ * **annual interest rate** for this account. Interest is taxable income each year
+ * (US: ordinary income / 1099-INT; AU savings pre-move: 15% AU withholding + FTC).
  * Withdrawals above minimumBalance require no tax event (cash account).
  * A minimumBalance floor protects a portion of the balance from deficit-driven sales.
  * The priority field controls the order in which savings accounts are drawn when
@@ -32,7 +35,7 @@ export class SavingsAccount extends BaseAccount {
    * @param {Object} data - Plain POJO from AppState savingsAccounts[] array
    */
   constructor(data) {
-    super(data);  // id, name, country, currency, balance, growthRate, ownerId
+    super(data);  // id, name, country, currency, balance, growthRate (annual interest rate), ownerId
     this.type           = 'savings';
     this.minimumBalance = data.minimumBalance ?? 0;
     this.priority       = data.priority       ?? 1;

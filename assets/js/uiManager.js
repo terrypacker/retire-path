@@ -904,14 +904,18 @@ export class UIManager {
     if (!container) return;
     const accounts = this._state.get('savingsAccounts') || [];
     container.innerHTML = '';
+    const people = this._state.get('people') || [];
     accounts.forEach(s => {
+      const flag       = s.country === 'AUS' ? '🇦🇺' : '🇺🇸';
+      const ownerName  = s.ownerId ? (people.find(p => p.id === s.ownerId) || {}).name : null;
+      const ownerLabel = ownerName ? ` · ${ownerName}` : '';
       const item = document.createElement('div');
       item.className = 'account-item';
       item.innerHTML = `
         <div style="flex:1;min-width:0;">
           <div class="account-name">${s.name}</div>
           <span class="account-type-badge badge-savings">SAVINGS</span>
-          <span style="font-size:0.65rem;color:var(--text-muted);margin-left:4px;">min $${this._fmtShort(s.minimumBalance || 0)} · priority ${s.priority || 1}</span>
+          <span style="font-size:0.65rem;color:var(--text-muted);margin-left:4px;">${flag} min $${this._fmtShort(s.minimumBalance || 0)} · priority ${s.priority || 1}${ownerLabel}</span>
         </div>
         <span class="account-value">$${this._fmtShort(s.balance)}</span>
         <div class="account-actions">
@@ -1227,6 +1231,8 @@ export class UIManager {
     if (s) {
       document.getElementById('sav-id').value = id;
       this._setField('sav-name', s.name);
+      this._setField('sav-country', s.country || 'US');
+      this._fillSavingsOwnership(s.ownerId || null);
       this._setField('sav-balance', s.balance || 0);
       this._setField('sav-growth', s.growthRate != null ? s.growthRate : 4.5);
       this._setField('sav-min-balance', s.minimumBalance || 0);
@@ -1240,6 +1246,8 @@ export class UIManager {
     if (!modal) return;
     document.getElementById('sav-id').value = '';
     this._setField('sav-name', '');
+    this._setField('sav-country', 'US');
+    this._fillSavingsOwnership(null);
     this._setField('sav-balance', 0);
     this._setField('sav-growth', 4.5);
     this._setField('sav-min-balance', 0);
@@ -1247,10 +1255,26 @@ export class UIManager {
     modal.classList.add('open');
   }
 
+  _fillSavingsOwnership(ownerId) {
+    const people  = this._state.get('people');
+    const ownerEl = document.getElementById('sav-owner');
+    if (ownerEl) {
+      ownerEl.innerHTML =
+        '<option value="none">— None (split evenly) —</option>' +
+        people.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+      ownerEl.value = ownerId || 'none';
+    }
+  }
+
   saveSavingsModal() {
-    const id = document.getElementById('sav-id').value;
+    const id    = document.getElementById('sav-id').value;
+    const country = this._getField('sav-country') || 'US';
+    const ownerVal = this._getField('sav-owner');
     const data = {
       name:           this._getField('sav-name'),
+      country,
+      currency:       country === 'AUS' ? 'AUD' : 'USD',
+      ownerId:        ownerVal === 'none' ? null : ownerVal,
       balance:        +this._getField('sav-balance'),
       growthRate:     +this._getField('sav-growth'),
       minimumBalance: +this._getField('sav-min-balance'),

@@ -850,6 +850,22 @@
         <label class="form-label">Account Name</label>
         <input type="text" id="sav-name" class="form-input" placeholder="e.g. Emergency Fund">
       </div>
+      <div class="form-group">
+        <label class="form-label">Country</label>
+        <select id="sav-country" class="form-select">
+          <option value="US">🇺🇸 United States</option>
+          <option value="AUS">🇦🇺 Australia</option>
+        </select>
+      </div>
+      <div class="form-group" id="sav-owner-group">
+        <label class="form-label">Owner</label>
+        <select id="sav-owner" class="form-select">
+          <!-- populated dynamically from people in state -->
+        </select>
+        <small style="color:var(--text-muted);font-size:0.7rem;">
+          Owner determines individual AU income tax liability. Leave unset to split interest evenly.
+        </small>
+      </div>
       <div class="form-row">
         <div class="form-group">
           <label class="form-label">Current Balance</label>
@@ -859,7 +875,7 @@
           </div>
         </div>
         <div class="form-group">
-          <label class="form-label">Growth Rate %</label>
+          <label class="form-label">Interest Rate % (used as growth rate)</label>
           <input type="number" id="sav-growth" class="form-input mono" value="4.5" step="0.25">
         </div>
       </div>

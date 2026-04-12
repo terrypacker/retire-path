@@ -215,6 +215,9 @@ export class ProjectionEngine {
     let auNonResWithdrawalsUSD       = 0;   // AU-source account withdrawals pre-move (non-resident AU tax)
     let auNonResGainWithdrawnUSD     = 0;   // Gains from AU-country brokerages pre-move (non-resident AU CGT)
     const auNonResWithdrawalSources  = [];
+    let savingsInterestIncomeUSD     = 0;   // US-taxable interest income from all savings accounts
+    let auSavingsWithholdingAUD      = 0;   // AU 15% withholding on AU savings interest (pre-move, non-resident)
+    const savingsInterestDetail      = [];  // per-account interest entries for income drilldown
 
     retirementAccts.forEach(acc => {
       const accData = accBalances[acc.id] || { balance: 0, contributions: 0, moveValueBasis: null };
@@ -370,13 +373,66 @@ export class ProjectionEngine {
 
     // ── Savings account growth & above-minimum withdrawals ────────────────────
     // Savings withdrawals cover the gap before brokerage is touched (no tax event).
+    // Interest earned each year (balance × growthRate/100) is taxable income:
+    //   US savings  → US ordinary income (1099-INT if > $10).
+    //   AU savings (pre-move) → 15% AU withholding (treaty rate) + US ordinary income + FTC.
+    //   AU savings (post-move) → US worldwide income + AU ordinary income at marginal rates.
     const nextSavValues = {};
     let totalSavingsValue = 0;
     const savingsWithdrawalDetails = [];
 
     savingsAccts.forEach(sav => {
       let { balance } = savValues[sav.id] || { balance: sav.balance };
-      balance = sav.applyGrowth(balance);
+
+      // Compute interest explicitly (= growth amount) so we can tax it.
+      // growthRate is the annual interest rate for savings/HYSA accounts.
+      const interestEarnedUSD = balance * (sav.growthRate / 100);
+      balance += interestEarnedUSD;
+
+      // Route interest into tax buckets based on account country and residency.
+      if (interestEarnedUSD > 0) {
+        savingsInterestIncomeUSD += interestEarnedUSD;  // always US ordinary income (worldwide taxation)
+
+        if (sav.country === 'AUS') {
+          if (isPreMoveUS) {
+            // Pre-move: US resident holds AU savings account.
+            // Australia withholds 15% on interest paid to US residents (AU-US DTA Art.11).
+            const interestAUD = interestEarnedUSD * (s.fxRate || 1.58);
+            auSavingsWithholdingAUD += interestAUD * 0.15;
+          } else {
+            // Post-move: AU resident — interest is AU ordinary income at marginal rates.
+            // Attribute to account owner (or split evenly if no owner set).
+            const alivePeople = people.filter(p => year <= p.birthYear + p.lifeExpectancy);
+            if (sav.ownerId && personIncome[sav.ownerId] !== undefined) {
+              personIncome[sav.ownerId].withdrawals += interestEarnedUSD;
+              personIncome[sav.ownerId].withdrawalSources.push({ label: `${sav.name} — Interest Income`, amount: interestEarnedUSD });
+            } else if (alivePeople.length > 0) {
+              const share = interestEarnedUSD / alivePeople.length;
+              alivePeople.forEach(p => {
+                personIncome[p.id].withdrawals += share;
+                personIncome[p.id].withdrawalSources.push({ label: `${sav.name} — Interest Income`, amount: share });
+              });
+            }
+          }
+        } else {
+          // US savings account: post-move AU residents are taxed on worldwide income.
+          if (isPostMove) {
+            const alivePeople = people.filter(p => year <= p.birthYear + p.lifeExpectancy);
+            if (sav.ownerId && personIncome[sav.ownerId] !== undefined) {
+              personIncome[sav.ownerId].withdrawals += interestEarnedUSD;
+              personIncome[sav.ownerId].withdrawalSources.push({ label: `${sav.name} — Interest Income`, amount: interestEarnedUSD });
+            } else if (alivePeople.length > 0) {
+              const share = interestEarnedUSD / alivePeople.length;
+              alivePeople.forEach(p => {
+                personIncome[p.id].withdrawals += share;
+                personIncome[p.id].withdrawalSources.push({ label: `${sav.name} — Interest Income`, amount: share });
+              });
+            }
+          }
+        }
+
+        savingsInterestDetail.push({ label: `${sav.getDisplayLabel()} — Interest`, amount: interestEarnedUSD });
+      }
 
       if (withdrawalGapRemaining > 0) {
         const { withdrawal, newBalance } = sav.calculateWithdrawal(balance, withdrawalGapRemaining);
@@ -474,7 +530,8 @@ export class ProjectionEngine {
     // ordinaryTaxableIncome: income subject to ordinary US brackets.
     // Excludes brokerage gains (taxed separately as CGT), brokerage basis returns (not taxed),
     // and tax-free retirement withdrawals like qualified Roth (taxableIncome = 0).
-    const ordinaryTaxableIncome = employmentIncome + socialSecurityTotal + usTaxableWithdrawals + propertySaleIncome;
+    // savingsInterestIncomeUSD: interest earned on savings/HYSA accounts — always US ordinary income.
+    const ordinaryTaxableIncome = employmentIncome + socialSecurityTotal + usTaxableWithdrawals + propertySaleIncome + savingsInterestIncomeUSD;
     // totalIncome: full cash inflows used for cash-flow and net-worth calculations.
     // totalAccountWithdrawals includes ALL account cash (retirement + brokerage), regardless of tax status.
     const totalIncome = employmentIncome + socialSecurityTotal + totalAccountWithdrawals + propertySaleIncome;
@@ -510,6 +567,7 @@ export class ProjectionEngine {
           if (personIncome[p.id].ss > 0)         usSources.push({ label: `${p.name} — Social Security`, amount: personIncome[p.id].ss });
         });
         usTaxableWithdrawalSources.forEach(src => usSources.push(src));
+        if (savingsInterestIncomeUSD > 0) usSources.push({ label: 'Savings / HYSA Interest (1099-INT)', amount: savingsInterestIncomeUSD });
         if (propertySaleIncome > 0) usSources.push({ label: 'Property Sale Proceeds', amount: propertySaleIncome });
         if (usSources.length > 0) {
           usSources.push({ label: 'Total Ordinary Income', amount: ordinaryTaxableIncome, isSummary: true });
@@ -605,9 +663,10 @@ export class ProjectionEngine {
           note: 'AU tax exceeds US liability; credited against future US tax',
         });
       }
-    } else if (auNonResGainWithdrawnUSD > 0 || auNonResWithdrawalsUSD > 0) {
+    } else if (auNonResGainWithdrawnUSD > 0 || auNonResWithdrawalsUSD > 0 || auSavingsWithholdingAUD > 0) {
       // Pre-move: Australia taxes non-residents on AU-source income (no tax-free threshold, no LITO,
       // no Medicare Levy, no 50% CGT discount). US provides FTC for the AU non-resident tax paid.
+      // AU savings withholding (15% flat rate on interest) is also collected here.
       const auMod = this._taxes.get('AUS', year);
       let auNonResTaxAUD = 0;
 
@@ -641,6 +700,16 @@ export class ProjectionEngine {
             note:   `A$${Math.round(cgtResult.tax).toLocaleString()} AUD`,
           });
         }
+      }
+
+      // AU interest withholding on AU savings accounts (flat 15% treaty rate, pre-move)
+      if (auSavingsWithholdingAUD > 0) {
+        auNonResTaxAUD += auSavingsWithholdingAUD;
+        auTaxDetail.push({
+          label:  'AU Interest Withholding Tax (15%)',
+          amount: auSavingsWithholdingAUD / fxRate,
+          note:   `A$${Math.round(auSavingsWithholdingAUD).toLocaleString()} AUD; AU-US DTA Art.11`,
+        });
       }
 
       auTax = auNonResTaxAUD / fxRate;
@@ -697,6 +766,7 @@ export class ProjectionEngine {
     });
     accountWithdrawalDetails.forEach(d  => incomeDetail.push(d));
     savingsWithdrawalDetails.forEach(d  => incomeDetail.push(d));
+    savingsInterestDetail.forEach(d     => incomeDetail.push({ ...d, depositedTo: 'Balance (taxed)' }));
     brokerageWithdrawalDetails.forEach(d => incomeDetail.push(d));
     propertySaleDetails.forEach(d       => incomeDetail.push(d));
 
