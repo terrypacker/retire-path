@@ -97,3 +97,72 @@ test('US brokerage-only: US CGT is zero at the 0% long-term rate for this income
     `Expected usTax === 0 (0% LTCG bracket) in year ${firstYear.year}, got ${firstYear.usTax}.`
   );
 });
+
+// ── Scenario: US Social Security income ──────────────────────────────────────
+// Alice (born 1960) retires at 62 and starts Social Security at 70.
+// Expenses are set low enough ($30K/yr) that once SS starts (~$41K/yr inflated)
+// it covers them entirely — no brokerage withdrawal occurs in that year.
+// This isolates SS as the sole income source to verify correct tax treatment.
+
+/**
+ * Find the first projection year where SS income is non-zero and employment is zero.
+ * Returns null if no such year exists.
+ */
+function findFirstSSOnlyYear(years) {
+  return years.find(y => y.socialSecurityTotal > 0 && y.employmentIncome === 0) ?? null;
+}
+
+test('SS income: Social Security appears in totalIncome', () => {
+  const state  = createMockState(loadScenario('us-ss-income.json'));
+  const taxes  = new TaxEngine();
+  const engine = new ProjectionEngine(state, taxes);
+
+  const years   = engine.run();
+  const ssYear  = findFirstSSOnlyYear(years);
+
+  assert.ok(ssYear !== null, 'Expected at least one year with SS income and no employment income');
+  assert.ok(
+    ssYear.totalIncome >= ssYear.socialSecurityTotal,
+    `Expected totalIncome (${ssYear.totalIncome.toFixed(0)}) >= socialSecurityTotal (${ssYear.socialSecurityTotal.toFixed(0)}) in year ${ssYear.year}`
+  );
+});
+
+test('SS income: ordinary income tax is assessed on SS distributions', () => {
+  // SS benefit (~$41K inflated by 2030) exceeds the MFJ standard deduction (~$34K in 2030),
+  // so ordinary income tax should be > 0.
+  const state  = createMockState(loadScenario('us-ss-income.json'));
+  const taxes  = new TaxEngine();
+  const engine = new ProjectionEngine(state, taxes);
+
+  const years  = engine.run();
+  const ssYear = findFirstSSOnlyYear(years);
+
+  assert.ok(ssYear !== null, 'Expected at least one year with SS income and no employment income');
+
+  const hasOrdinaryIncomeTax = ssYear.usTaxDetail.some(d => d.label === 'Ordinary Income Tax');
+  assert.ok(
+    hasOrdinaryIncomeTax,
+    `Expected ordinary income tax line item in usTaxDetail for year ${ssYear.year} ` +
+    `(SS = $${ssYear.socialSecurityTotal.toFixed(0)}). Tax detail: ${JSON.stringify(ssYear.usTaxDetail.map(d => d.label))}`
+  );
+});
+
+test('SS income: FICA is not charged on Social Security distributions', () => {
+  // FICA (Social Security & Medicare payroll tax) is a tax on wages only.
+  // It must not be assessed on Social Security benefit payments.
+  const state  = createMockState(loadScenario('us-ss-income.json'));
+  const taxes  = new TaxEngine();
+  const engine = new ProjectionEngine(state, taxes);
+
+  const years  = engine.run();
+  const ssYear = findFirstSSOnlyYear(years);
+
+  assert.ok(ssYear !== null, 'Expected at least one year with SS income and no employment income');
+
+  const ficaEntry = ssYear.usTaxDetail.find(d => d.label === 'FICA (Social Security & Medicare)');
+  assert.ok(
+    ficaEntry === undefined,
+    `FICA should not appear in usTaxDetail when there is no employment income in year ${ssYear.year}. ` +
+    `Got FICA amount: $${ficaEntry ? ficaEntry.amount.toFixed(0) : 0}`
+  );
+});

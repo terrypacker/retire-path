@@ -439,7 +439,7 @@ export class ProjectionEngine {
     let grossUSTax = 0;
     if (ordinaryTaxableIncome > 0 || brokerageGainWithdrawn > 0) {
       const usResult = this._taxes.get('US', year).calcIncomeTax(ordinaryTaxableIncome, {
-        year, filingStatus: 'mfj', isRetired: allRetired,
+        year, filingStatus: 'mfj', isRetired: allRetired, wageIncome: employmentIncome,
       });
       grossUSTax = usResult.tax;
       if (brokerageGainWithdrawn > 0) {

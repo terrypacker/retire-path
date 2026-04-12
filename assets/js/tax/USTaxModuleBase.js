@@ -42,12 +42,13 @@ export class USTaxModuleBase extends BaseTaxModule {
   // ── Income tax ───────────────────────────────────────────────────────────
 
   calcIncomeTax(grossIncome, context = {}) {
-    const { year = this.year } = context;
+    const { year = this.year, wageIncome = grossIncome } = context;
     const brackets = this._inflateBrackets(this._brackets_mfj, this.year, year, this._inflationRate);
     const stdDed   = Math.round(this._stdDeduction_mfj * Math.pow(1 + this._inflationRate, year - this.year));
     const taxable  = Math.max(0, grossIncome - stdDed);
     const { tax, marginalRate, breakdown } = this._applyBrackets(taxable, brackets);
-    const ficaTax  = Math.min(grossIncome, this._ficaWageBase) * this._ficaRate;
+    // FICA (payroll tax) applies to wages only — not to SS distributions, retirement withdrawals, etc.
+    const ficaTax  = Math.min(wageIncome, this._ficaWageBase) * this._ficaRate;
     const total    = tax + ficaTax;
     return {
       tax: total,
