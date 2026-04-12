@@ -198,7 +198,6 @@ export class ProjectionEngine {
     let withdrawalGapRemaining     = expenseGap;
     let brokerageAUCGTTotalAUD     = 0;  // AU CGT in AUD (AU brackets applied to AUD amounts)
     let brokerageGainWithdrawn     = 0;
-    let totalBrokerageWithdrawals  = 0;  // full brokerage cash out (basis + gain) for cash-flow tracking
     const accountWithdrawalDetails   = [];
     const brokerageWithdrawalDetails = [];
     const usPenaltyDetails           = [];  // line items for US tax detail
@@ -365,8 +364,7 @@ export class ProjectionEngine {
           brok.calculateWithdrawal(balance, costBasis, withdrawalGapRemaining);
         balance   = newBalance;
         costBasis = newCostBasis;
-        brokerageGainWithdrawn    += gainWithdrawn;
-        totalBrokerageWithdrawals += withdrawal;
+        brokerageGainWithdrawn += gainWithdrawn;
         withdrawalGapRemaining -= withdrawal;
         totalAccountWithdrawals += withdrawal;
         brokerageWithdrawalDetails.push({ label: brok.getDisplayLabel(), amount: withdrawal, gainWithdrawn, depositedTo: 'Expense Pool' });
@@ -422,10 +420,13 @@ export class ProjectionEngine {
     });
 
     // ── Tax estimate ──────────────────────────────────────────────────────────
-    // ordinaryTaxableIncome: income subject to ordinary US brackets (excludes brokerage — gains are CGT, basis return is not taxed)
+    // ordinaryTaxableIncome: income subject to ordinary US brackets.
+    // Excludes brokerage gains (taxed separately as CGT), brokerage basis returns (not taxed),
+    // and tax-free retirement withdrawals like qualified Roth (taxableIncome = 0).
     const ordinaryTaxableIncome = employmentIncome + socialSecurityTotal + usTaxableWithdrawals + propertySaleIncome;
-    // totalIncome: full cash inflows including brokerage basis returns (used for cash-flow / net-worth calculations)
-    const totalIncome = ordinaryTaxableIncome + totalBrokerageWithdrawals;
+    // totalIncome: full cash inflows used for cash-flow and net-worth calculations.
+    // totalAccountWithdrawals includes ALL account cash (retirement + brokerage), regardless of tax status.
+    const totalIncome = employmentIncome + socialSecurityTotal + totalAccountWithdrawals + propertySaleIncome;
     let usTax = 0;
     let auTax = 0;
     const fxRate = s.fxRate || 1.58;  // 1 USD = fxRate AUD

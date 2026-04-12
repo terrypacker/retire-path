@@ -147,7 +147,7 @@ test('SS income: ordinary income tax is assessed on SS distributions', () => {
   );
 });
 
-test('SS income: FICA is not charged on Social Security distributions', () => {
+test('SS income: FICA is not charged on Social Security distributions (post-fix)', () => {
   // FICA (Social Security & Medicare payroll tax) is a tax on wages only.
   // It must not be assessed on Social Security benefit payments.
   const state  = createMockState(loadScenario('us-ss-income.json'));
@@ -164,5 +164,70 @@ test('SS income: FICA is not charged on Social Security distributions', () => {
     ficaEntry === undefined,
     `FICA should not appear in usTaxDetail when there is no employment income in year ${ssYear.year}. ` +
     `Got FICA amount: $${ficaEntry ? ficaEntry.amount.toFixed(0) : 0}`
+  );
+});
+
+// ── Scenario: Two people in Australia — SS (Person 1) + Roth (Person 2) ──────
+// Alice (born 1960) has Social Security starting at 70.
+// Bob (born 1962) has a Roth IRA ($800K, $300K contributions basis).
+// Both retire at 62 and move to Australia in 2028.
+// From 2030 onward Alice's SS is active; Bob's Roth fills the expense gap.
+// A Roth qualified withdrawal returns taxableIncome=0 (US), meaning it never
+// flows into usTaxableWithdrawals — but it MUST still appear in totalIncome
+// because it is real cash that covers expenses.
+
+/**
+ * Find the first post-move year where both SS and a Roth account withdrawal
+ * are active. Uses the incomeDetail breakdown to detect the Roth withdrawal.
+ */
+function findSSAndRothYear(years) {
+  return years.find(y =>
+    y.isPostMove &&
+    y.socialSecurityTotal > 0 &&
+    y.accountWithdrawals > 0 &&
+    y.incomeDetail.some(d => d.label.toLowerCase().includes('roth'))
+  ) ?? null;
+}
+
+test('AU post-move: Roth withdrawal appears in totalIncome alongside SS', () => {
+  // When a Roth IRA is drawn down to cover expenses, the full withdrawal amount
+  // must appear in totalIncome even though it is US-tax-free (taxableIncome = 0).
+  // Currently FAILS: Roth cash is in totalAccountWithdrawals but not totalIncome.
+  const state  = createMockState(loadScenario('au-ss-and-roth.json'));
+  const taxes  = new TaxEngine();
+  const engine = new ProjectionEngine(state, taxes);
+
+  const years = engine.run();
+  const yr    = findSSAndRothYear(years);
+
+  assert.ok(yr !== null, 'Expected at least one post-move year with both SS and Roth withdrawal active');
+
+  // totalIncome must account for ALL cash inflows: SS + full Roth withdrawal
+  assert.ok(
+    yr.totalIncome >= yr.socialSecurityTotal + yr.accountWithdrawals,
+    `Year ${yr.year}: totalIncome ($${yr.totalIncome.toFixed(0)}) should be >= ` +
+    `SS ($${yr.socialSecurityTotal.toFixed(0)}) + Roth ($${yr.accountWithdrawals.toFixed(0)}). ` +
+    'Roth cash is missing from totalIncome.'
+  );
+});
+
+test('AU post-move: net cash flow is near zero when SS + Roth cover expenses', () => {
+  // With SS and Roth together covering expenses the net cash flow should be close to zero.
+  // A large negative value means totalIncome is understated (Roth cash not counted).
+  const state  = createMockState(loadScenario('au-ss-and-roth.json'));
+  const taxes  = new TaxEngine();
+  const engine = new ProjectionEngine(state, taxes);
+
+  const years = engine.run();
+  const yr    = findSSAndRothYear(years);
+
+  assert.ok(yr !== null, 'Expected at least one post-move year with both SS and Roth withdrawal active');
+
+  const tolerance = yr.annualExpenses * 0.15;
+  assert.ok(
+    Math.abs(yr.netCashFlow) <= tolerance,
+    `Year ${yr.year}: |netCashFlow| ($${Math.abs(yr.netCashFlow).toFixed(0)}) should be <= ` +
+    `$${tolerance.toFixed(0)} (15% of expenses $${yr.annualExpenses.toFixed(0)}). ` +
+    `Actual netCashFlow = $${yr.netCashFlow.toFixed(0)}.`
   );
 });

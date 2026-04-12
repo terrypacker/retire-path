@@ -1,0 +1,69 @@
+{
+  "_comment": "Two-person household living in Australia. Person 1 (Alice) has Social Security starting at 70. Person 2 (Bob) has a Roth IRA. Both retire at 62. Move to Australia in 2028. In post-move years once Alice's SS starts (2030+), expenses are covered by SS + Roth drawdown. Tests verify both sources appear in totalIncome and that netCashFlow is near zero.",
+  "currency": "USD",
+  "fxRate": 1.58,
+  "taxBaseYear": 2025,
+  "people": [
+    {
+      "id": "person1",
+      "name": "Alice",
+      "birthYear": 1960,
+      "retirementAge": 62,
+      "lifeExpectancy": 90,
+      "socialSecurityAge": 70,
+      "socialSecurityMonthly": 2500,
+      "isCitizen": "us",
+      "annualIncome": 0
+    },
+    {
+      "id": "person2",
+      "name": "Bob",
+      "birthYear": 1962,
+      "retirementAge": 62,
+      "lifeExpectancy": 88,
+      "socialSecurityAge": 70,
+      "socialSecurityMonthly": 0,
+      "isCitizen": "us",
+      "annualIncome": 0
+    }
+  ],
+  "moveToAustraliaYear": 2028,
+  "moveEnabled": true,
+  "inflationUS": 3.0,
+  "inflationAUS": 3.0,
+  "accounts": [
+    {
+      "id": "roth1",
+      "name": "Bob's Roth IRA",
+      "type": "roth",
+      "country": "US",
+      "balance": 800000,
+      "currency": "USD",
+      "annualContribution": 0,
+      "employerMatch": 0,
+      "growthRate": 7.0,
+      "ownerId": "person2",
+      "withdrawalStartAge": 59.5,
+      "contributions": 300000
+    }
+  ],
+  "properties": [],
+  "brokerageAccounts": [
+    {
+      "id": "brok1",
+      "name": "Joint Brokerage",
+      "country": "US",
+      "balance": 500000,
+      "currency": "USD",
+      "annualContribution": 0,
+      "growthRate": 5.0,
+      "costBasis": 300000,
+      "isJointAccount": true,
+      "ownerId": "person1"
+    }
+  ],
+  "currentAnnualExpenses": 80000,
+  "retirementExpenseRatio": 1.0,
+  "australiaExpenseRatio": 1.0,
+  "targetEndBalance": 0
+}
