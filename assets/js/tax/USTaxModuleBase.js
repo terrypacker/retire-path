@@ -99,34 +99,6 @@ export class USTaxModuleBase extends BaseTaxModule {
       .map(b => ({ ...b, label: `${(b.rate * 100).toFixed(0)}%` }));
   }
 
-  // ── Account treatment ─────────────────────────────────────────────────────
-
-  accountTreatment(accountType, eventType, amount, context = {}) {
-    switch (accountType) {
-      case '401k':
-      case 'ira':
-        if (eventType === 'contribution') return { taxableAmount: 0,      note: 'Pre-tax contribution' };
-        if (eventType === 'growth')       return { taxableAmount: 0,      note: 'Tax-deferred growth' };
-        if (eventType === 'withdrawal')   return { taxableAmount: amount, note: 'Taxable as ordinary income' };
-        break;
-      case 'roth':
-        if (eventType === 'contribution') return { taxableAmount: amount, note: 'After-tax contribution' };
-        if (eventType === 'growth')       return { taxableAmount: 0,      note: 'Tax-free growth' };
-        if (eventType === 'withdrawal') {
-          const age = context.age || 60;
-          return age >= 59.5
-            ? { taxableAmount: 0,             note: 'Qualified tax-free withdrawal' }
-            : { taxableAmount: amount * 0.10, note: '10% early withdrawal penalty' };
-        }
-        break;
-      case 'brokerage':
-        if (eventType === 'growth')      return { taxableAmount: 0,      note: 'Tax deferred until sale' };
-        if (eventType === 'withdrawal')  return { taxableAmount: amount, note: 'Capital gains apply' };
-        break;
-    }
-    return { taxableAmount: amount, note: '' };
-  }
-
   // ── Social Security ───────────────────────────────────────────────────────
 
   /**

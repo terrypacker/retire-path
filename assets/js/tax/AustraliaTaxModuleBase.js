@@ -33,9 +33,7 @@ import { BaseTaxModule } from './BaseTaxModule.js';
 export class AustraliaTaxModuleBase extends BaseTaxModule {
   constructor(year) {
     super('AUS', year);
-    this._superTaxRate              = 0.15;  // within-fund contributions tax
-    this._superWithdrawalTaxUnder60 = 0.20;  // simplified pre-60 withdrawal rate
-    this._inflationRate             = 0.03;  // CPI rate used to project brackets beyond this.year
+    this._inflationRate = 0.03;  // CPI rate used to project brackets beyond this.year
   }
 
   // ── Income tax ───────────────────────────────────────────────────────────
@@ -119,52 +117,6 @@ export class AustraliaTaxModuleBase extends BaseTaxModule {
   getBrackets(targetYear = this.year) {
     return this._inflateBrackets(this._brackets, this.year, targetYear, this._inflationRate)
       .map(b => ({ ...b, label: `${(b.rate * 100).toFixed(0)}%` }));
-  }
-
-  // ── Account treatment ─────────────────────────────────────────────────────
-
-  accountTreatment(accountType, eventType, amount, context = {}) {
-    const age = context.age || 60;
-
-    if (accountType === 'super') {
-      if (eventType === 'contribution')
-        return { taxableAmount: amount * this._superTaxRate, note: '15% contributions tax in fund' };
-      if (eventType === 'growth')
-        return { taxableAmount: amount * 0.15, note: '15% earnings tax in accumulation phase' };
-      if (eventType === 'withdrawal') {
-        if (age >= 60) return { taxableAmount: 0,      note: 'Tax-free super withdrawal (age 60+)' };
-        return          { taxableAmount: amount * this._superWithdrawalTaxUnder60, note: '20% tax + Medicare (under 60)' };
-      }
-    }
-
-    // US retirement accounts held post-move — treated as foreign pension income in AU.
-    // Stub: 100% of withdrawal is AU-taxable as foreign income.
-    // Future: apply proportional Article 18 (US-AU Tax Treaty) exemption using context.moveValueBasis
-    // to distinguish pre-move growth (potentially exempt) from post-move growth (taxable).
-    if (accountType === '401k' || accountType === 'ira') {
-      if (eventType === 'contribution') return { taxableAmount: 0, note: 'Pre-tax (no AU event at contribution)' };
-      if (eventType === 'growth')       return { taxableAmount: 0, note: 'Tax-deferred growth (no AU event)' };
-      if (eventType === 'withdrawal') {
-        const note = context.moveValueBasis != null
-          ? '100% taxable as foreign income (Article 18 treaty exemption not yet modelled)'
-          : '100% taxable as foreign income (no move-date basis set)';
-        return { taxableAmount: amount, note };
-      }
-    }
-
-    if (accountType === 'roth') {
-      if (eventType === 'contribution') return { taxableAmount: 0,      note: 'After-tax (no AU event at contribution)' };
-      if (eventType === 'growth')       return { taxableAmount: 0,      note: 'Tax-free growth (no AU event)' };
-      if (eventType === 'withdrawal')
-        return { taxableAmount: amount, note: 'Taxable as foreign income in AU (Roth has no AU equivalent)' };
-    }
-
-    // Franking credits on AU dividends — simplified: ~4.3% effective credit on dividends
-    if (accountType === 'brokerage' && eventType === 'withdrawal') {
-      return { taxableAmount: amount, note: 'CGT 50% discount may apply', frankingCredit: amount * 0.043 };
-    }
-
-    return { taxableAmount: amount, note: '' };
   }
 
   // ── AU-specific brokerage CGT ─────────────────────────────────────────────

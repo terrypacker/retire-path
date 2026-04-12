@@ -85,7 +85,6 @@ export class AppState {
           growthRate: 7.0,
           ownerId: 'person1',
           withdrawalStartAge: 59.5,
-          moveValueBasis: null,
         },
         {
           id: 'acc2',
@@ -99,7 +98,7 @@ export class AppState {
           growthRate: 7.0,
           ownerId: 'person1',
           withdrawalStartAge: 59.5,
-          moveValueBasis: null,
+          contributions: 60000,  // after-tax contributions made to date (corpus)
         },
         {
           id: 'acc3',
@@ -113,7 +112,6 @@ export class AppState {
           growthRate: 7.0,
           ownerId: 'person2',
           withdrawalStartAge: 59.5,
-          moveValueBasis: null,
         },
         {
           id: 'acc4',
@@ -127,7 +125,6 @@ export class AppState {
           growthRate: 7.0,
           ownerId: 'person1',
           withdrawalStartAge: 60,
-          moveValueBasis: null,
         },
       ],
 
@@ -160,7 +157,6 @@ export class AppState {
           annualContribution: 12000,
           growthRate: 7.0,
           costBasis: 38000,
-          moveValueBasis: null,
         }
       ],
 

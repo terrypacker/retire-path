@@ -17,10 +17,14 @@
  * limitations under the License.
  */
 
-import { RetirementAccount } from './RetirementAccount.js';
-import { BrokerageAccount  } from './BrokerageAccount.js';
-import { RealEstate        } from './RealEstate.js';
-import { Land              } from './Land.js';
+import { RetirementAccount    } from './RetirementAccount.js';
+import { Account401k          } from './accounts/Account401k.js';
+import { RothAccount          } from './accounts/RothAccount.js';
+import { TraditionalIRAAccount } from './accounts/TraditionalIRAAccount.js';
+import { SuperAccount         } from './accounts/SuperAccount.js';
+import { BrokerageAccount     } from './BrokerageAccount.js';
+import { RealEstate           } from './RealEstate.js';
+import { Land                 } from './Land.js';
 
 /**
  * AssetFactory.js
@@ -29,15 +33,20 @@ import { Land              } from './Land.js';
  */
 export class AssetFactory {
   /**
-   * Wrap a retirement-account POJO (from AppState accounts[]).
-   * All current retirement types (401k, roth, ira, super) map to
-   * RetirementAccount; extend here when a new type needs custom logic.
+   * Wrap a retirement-account POJO (from AppState accounts[]) as the correct subclass.
+   * Dispatches on pojo.type; falls back to the base RetirementAccount for unknown types.
    *
    * @param {Object} pojo - AppState accounts[] entry
    * @returns {RetirementAccount}
    */
   static wrapRetirementAccount(pojo) {
-    return new RetirementAccount(pojo);
+    switch (pojo.type) {
+      case '401k':  return new Account401k(pojo);
+      case 'roth':  return new RothAccount(pojo);
+      case 'ira':   return new TraditionalIRAAccount(pojo);
+      case 'super': return new SuperAccount(pojo);
+      default:      return new RetirementAccount(pojo);
+    }
   }
 
   /**

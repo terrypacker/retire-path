@@ -34,6 +34,9 @@ export class RetirementAccount extends BaseAccount {
     this.employerMatch      = data.employerMatch      || 0;
     this.withdrawalStartAge = data.withdrawalStartAge != null ? data.withdrawalStartAge : 59.5;
     this.moveValueBasis     = data.moveValueBasis     ?? null;
+    // Total after-tax contributions to date (corpus/basis). Used to determine gains portion
+    // for Roth early-withdrawal penalty (US) and for informational AU tax breakdown.
+    this.contributions      = data.contributions      ?? 0;
   }
 
   // ── Contributions ─────────────────────────────────────────────────────────
@@ -65,5 +68,31 @@ export class RetirementAccount extends BaseAccount {
    */
   canWithdraw(ownerAge) {
     return ownerAge >= this.withdrawalStartAge;
+  }
+
+  // ── Account treatment ─────────────────────────────────────────────────────
+
+  /**
+   * US federal tax treatment for a given account event.
+   * Subclasses override to provide type-specific rules.
+   * @param {string} eventType - 'contribution' | 'growth' | 'withdrawal'
+   * @param {number} amount
+   * @param {Object} context - { age, year, moveValueBasis, contributions, balance }
+   * @returns {{ taxableAmount: number, note: string }}
+   */
+  getUSAccountTreatment(eventType, amount, context = {}) {
+    return { taxableAmount: amount, note: '' };
+  }
+
+  /**
+   * Australian tax treatment for a given account event.
+   * Subclasses override to provide type-specific rules.
+   * @param {string} eventType - 'contribution' | 'growth' | 'withdrawal'
+   * @param {number} amount
+   * @param {Object} context - { age, year, moveValueBasis, contributions, balance }
+   * @returns {{ taxableAmount: number, note: string }}
+   */
+  getAUAccountTreatment(eventType, amount, context = {}) {
+    return { taxableAmount: amount, note: '' };
   }
 }

@@ -72,7 +72,13 @@ export class ProjectionEngine {
 
   _initAccountBalances(retirementAccts) {
     const b = {};
-    retirementAccts.forEach(a => { b[a.id] = a.balance; });
+    retirementAccts.forEach(a => {
+      b[a.id] = {
+        balance:        a.balance,
+        contributions:  a.contributions || 0,  // after-tax contributions to date (corpus)
+        moveValueBasis: null,                   // computed automatically on move year
+      };
+    });
     return b;
   }
 
@@ -84,7 +90,13 @@ export class ProjectionEngine {
 
   _initBrokerageValues(brokerageAccts) {
     const v = {};
-    brokerageAccts.forEach(b => { v[b.id] = { balance: b.balance, costBasis: b.costBasis || 0 }; });
+    brokerageAccts.forEach(b => {
+      v[b.id] = {
+        balance:        b.balance,
+        costBasis:      b.costBasis || 0,
+        moveValueBasis: null,  // computed automatically on move year
+      };
+    });
     return v;
   }
 
@@ -175,7 +187,7 @@ export class ProjectionEngine {
     const expenseGap = Math.max(0, annualExpenses + mortgageTotal - incomeBeforeWithdrawals);
 
     // ── Retirement account growth & contributions ─────────────────────────────
-    const nextAccBalances = { ...accBalances };
+    const nextAccBalances = {};
     let totalAccountContributions  = 0;
     let totalAccountWithdrawals    = 0;
     let withdrawalGapRemaining     = expenseGap;
@@ -185,7 +197,11 @@ export class ProjectionEngine {
     const brokerageWithdrawalDetails = [];
 
     retirementAccts.forEach(acc => {
-      let bal = accBalances[acc.id] || 0;
+      const accData = accBalances[acc.id] || { balance: 0, contributions: 0, moveValueBasis: null };
+      let bal           = accData.balance;
+      let contributions = accData.contributions;
+      let moveValueBasis = accData.moveValueBasis;
+
       const ownerIdx  = people.findIndex(p => p.id === acc.ownerId);
       const owner     = people[ownerIdx];
       const ownerAge  = owner ? year - owner.birthYear : 65;
@@ -193,28 +209,40 @@ export class ProjectionEngine {
       const isAlive   = owner ? year <= owner.birthYear + owner.lifeExpectancy : anyAlive;
 
       if (!isAlive) {
-        nextAccBalances[acc.id] = bal;
+        nextAccBalances[acc.id] = { balance: bal, contributions, moveValueBasis };
         return;
       }
 
       // Growth
       bal = acc.applyGrowth(bal);
 
-      // Contributions (working only)
+      // Auto-compute move-date value: capture balance (after growth) in the first move year
+      if (moveEnabled && year === moveYear && moveValueBasis === null) {
+        moveValueBasis = bal;
+      }
+
+      // Contributions (working only) — also increases the contributions basis
       if (!isRetired) {
         const contrib = acc.getContribution();
         bal = acc.applyContributions(bal);
+        contributions += contrib;
         totalAccountContributions += contrib;
       }
 
       // Withdrawals to cover gap
       if (isRetired && acc.canWithdraw(ownerAge) && withdrawalGapRemaining > 0 && bal > 0) {
-        const treatCtx  = { age: ownerAge, year, moveValueBasis: acc.moveValueBasis || null };
-        const treatment = isPostMove
-          ? this._taxes.get('AUS', year).accountTreatment(acc.type, 'withdrawal', withdrawalGapRemaining, treatCtx)
-          : this._taxes.get('US',  year).accountTreatment(acc.type, 'withdrawal', withdrawalGapRemaining, treatCtx);
+        const preWithdrawalBal = bal;
+        const treatCtx   = { age: ownerAge, year, moveValueBasis, contributions, balance: preWithdrawalBal };
+        // Delegate treatment to the account subclass — each type knows its own rules.
+        const treatment  = isPostMove
+          ? acc.getAUAccountTreatment('withdrawal', withdrawalGapRemaining, treatCtx)
+          : acc.getUSAccountTreatment('withdrawal', withdrawalGapRemaining, treatCtx);
         const withdrawal = Math.min(bal, withdrawalGapRemaining);
         bal -= withdrawal;
+
+        // Pro-rata reduce the contributions basis as funds are withdrawn
+        contributions = preWithdrawalBal > 0 ? contributions * (bal / preWithdrawalBal) : 0;
+
         withdrawalGapRemaining -= withdrawal;
         totalAccountWithdrawals += withdrawal;
         if (acc.ownerId && personIncome[acc.ownerId] !== undefined) {
@@ -223,7 +251,7 @@ export class ProjectionEngine {
         accountWithdrawalDetails.push({ label: acc.getDisplayLabel(), amount: withdrawal });
       }
 
-      nextAccBalances[acc.id] = Math.max(0, bal);
+      nextAccBalances[acc.id] = { balance: Math.max(0, bal), contributions: Math.max(0, contributions), moveValueBasis };
     });
 
     // ── Property appreciation & equity ────────────────────────────────────────
@@ -268,10 +296,16 @@ export class ProjectionEngine {
     let totalBrokerageValue = 0;
 
     brokerageAccts.forEach(brok => {
-      let { balance, costBasis } = brokValues[brok.id] || { balance: brok.balance, costBasis: brok.costBasis || 0 };
+      let { balance, costBasis, moveValueBasis: brokMVB } =
+        brokValues[brok.id] || { balance: brok.balance, costBasis: brok.costBasis || 0, moveValueBasis: null };
 
       // Growth
       balance = brok.applyGrowth(balance);
+
+      // Auto-compute move-date value for brokerage (after growth in the first move year)
+      if (moveEnabled && year === moveYear && brokMVB === null) {
+        brokMVB = balance;
+      }
 
       if (!allRetired) {
         const contrib = brok.getContribution();
@@ -296,7 +330,7 @@ export class ProjectionEngine {
         if (isPostMove) {
           const auMod = this._taxes.get('AUS', year);
           const { auTaxableGain } = auMod.calcBrokerageAUGain(
-            withdrawal, preWithdrawalBalance, brok.moveValueBasis || null, preWithdrawalCostBasis
+            withdrawal, preWithdrawalBalance, brokMVB, preWithdrawalCostBasis
           );
           if (auTaxableGain > 0) {
             brokerageAUCGTTotal += auMod.calcCapitalGainsTax(
@@ -309,7 +343,7 @@ export class ProjectionEngine {
       }
 
       totalBrokerageValue += balance;
-      nextBrokValues[brok.id] = { balance: Math.max(0, balance), costBasis: Math.max(0, costBasis) };
+      nextBrokValues[brok.id] = { balance: Math.max(0, balance), costBasis: Math.max(0, costBasis), moveValueBasis: brokMVB };
     });
 
     // ── Deposit property sale proceeds into destination accounts ──────────────
@@ -321,8 +355,8 @@ export class ProjectionEngine {
         nextBrokValues[destId].costBasis += amount;
         totalBrokerageValue += amount;
       } else if (nextAccBalances[destId] !== undefined) {
-        // Retirement account destination: add to balance
-        nextAccBalances[destId] += amount;
+        // Retirement account destination: add to balance only (sale proceeds are not contributions basis)
+        nextAccBalances[destId].balance += amount;
       }
     });
 
@@ -419,12 +453,12 @@ export class ProjectionEngine {
     const estimatedTax = usTax + auTax;
 
     // ── Net worth ─────────────────────────────────────────────────────────────
-    const totalAccountValue = Object.values(nextAccBalances).reduce((a, b) => a + b, 0);
+    const totalAccountValue = Object.values(nextAccBalances).reduce((a, obj) => a + (obj.balance || 0), 0);
     const netWorth = totalAccountValue + totalPropertyEquity + totalBrokerageValue;
 
     // ── Per-asset balance snapshot (for account balance chart) ────────────────
     const assetBalances = {};
-    retirementAccts.forEach(acc => { assetBalances[acc.id] = nextAccBalances[acc.id] || 0; });
+    retirementAccts.forEach(acc => { assetBalances[acc.id] = (nextAccBalances[acc.id] || {}).balance || 0; });
     brokerageAccts.forEach(b => { assetBalances[b.id] = (nextBrokValues[b.id] || {}).balance || 0; });
     propertyAssets.forEach(prop => {
       const pv = nextPropValues[prop.id] || { value: 0, mortgage: 0 };
@@ -451,7 +485,7 @@ export class ProjectionEngine {
     // ── Net worth detail (for drill-down modal) ───────────────────────────────
     const netWorthDetail = [];
     retirementAccts.forEach(acc => {
-      const bal = nextAccBalances[acc.id] || 0;
+      const bal = (nextAccBalances[acc.id] || {}).balance || 0;
       if (bal > 0) netWorthDetail.push({
         label:   acc.name,
         amount:  bal,

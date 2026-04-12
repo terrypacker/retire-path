@@ -706,7 +706,7 @@ export class UIManager {
     if (!modal) return;
     document.getElementById('modal-account-title').textContent = 'Add Account';
     document.getElementById('modal-account-id').value = '';
-    this._fillAccountForm({ name: '', type: '401k', country: 'US', balance: 0, currency: 'USD', annualContribution: 0, employerMatch: 0, growthRate: 7, withdrawalStartAge: 59.5, ownerId: 'person1', moveValueBasis: null });
+    this._fillAccountForm({ name: '', type: '401k', country: 'US', balance: 0, currency: 'USD', annualContribution: 0, employerMatch: 0, growthRate: 7, withdrawalStartAge: 59.5, ownerId: 'person1', contributions: 0 });
     modal.classList.add('open');
   }
 
@@ -721,23 +721,58 @@ export class UIManager {
     this._setField('acc-growth', acc.growthRate || 7);
     this._setField('acc-withdraw-age', acc.withdrawalStartAge || 59.5);
     this._setField('acc-owner', acc.ownerId || 'person1');
-    this._setField('acc-move-basis', acc.moveValueBasis != null ? acc.moveValueBasis : '');
+    this._setField('acc-contributions', acc.contributions || 0);
+    this._updateAccountTypeConstraints(acc.type);
+    // Re-wire type selector each time the modal opens to keep show/hide in sync
+    const typeSelect = document.getElementById('acc-type');
+    if (typeSelect) typeSelect.onchange = () => this._updateAccountTypeConstraints(typeSelect.value);
+  }
+
+  _updateAccountTypeConstraints(accountType) {
+    // Show Contributions field only for account types where it is meaningful
+    const contribGroup = document.getElementById('acc-contributions-group');
+    if (contribGroup) contribGroup.style.display = (accountType === 'ira' || accountType === 'roth') ? '' : 'none';
+
+    // Enforce country/currency for type-locked accounts
+    const countryEl  = document.getElementById('acc-country');
+    const currencyEl = document.getElementById('acc-currency');
+
+    const constraints = {
+      '401k':  { country: 'US',  currency: 'USD', locked: true  },
+      'roth':  { country: 'US',  currency: 'USD', locked: true  },
+      'ira':   { country: 'US',  currency: 'USD', locked: true  },
+      'super': { country: 'AUS', currency: 'AUD', locked: true  },
+    };
+    const rule = constraints[accountType];
+
+    if (countryEl && currencyEl) {
+      if (rule) {
+        countryEl.value    = rule.country;
+        currencyEl.value   = rule.currency;
+        countryEl.disabled = rule.locked;
+        currencyEl.disabled = rule.locked;
+      } else {
+        countryEl.disabled  = false;
+        currencyEl.disabled = false;
+      }
+    }
   }
 
   saveAccountModal() {
-    const id = document.getElementById('modal-account-id').value;
+    const id   = document.getElementById('modal-account-id').value;
+    const type = this._getField('acc-type');
     const data = {
-      name: this._getField('acc-name'),
-      type: this._getField('acc-type'),
-      country: this._getField('acc-country'),
-      balance: +this._getField('acc-balance'),
-      currency: this._getField('acc-currency'),
+      name:               this._getField('acc-name'),
+      type,
+      country:            this._getField('acc-country'),
+      balance:            +this._getField('acc-balance'),
+      currency:           this._getField('acc-currency'),
       annualContribution: +this._getField('acc-contribution'),
-      employerMatch: +this._getField('acc-match'),
-      growthRate: +this._getField('acc-growth'),
+      employerMatch:      +this._getField('acc-match'),
+      growthRate:         +this._getField('acc-growth'),
       withdrawalStartAge: +this._getField('acc-withdraw-age'),
-      ownerId: this._getField('acc-owner'),
-      moveValueBasis: this._getField('acc-move-basis') !== '' ? +this._getField('acc-move-basis') : null,
+      ownerId:            this._getField('acc-owner'),
+      contributions:      (type === 'ira' || type === 'roth') ? +this._getField('acc-contributions') : 0,
     };
     if (id) this._state.updateAccount(id, data);
     else    this._state.addAccount(data);
@@ -842,7 +877,6 @@ export class UIManager {
       this._setField('brok-contribution', b.annualContribution || 0);
       this._setField('brok-growth', b.growthRate || 7);
       this._setField('brok-cost-basis', b.costBasis || 0);
-      this._setField('brok-move-basis', b.moveValueBasis != null ? b.moveValueBasis : '');
     }
     modal.classList.add('open');
   }
@@ -856,21 +890,19 @@ export class UIManager {
     this._setField('brok-contribution', 0);
     this._setField('brok-growth', 7);
     this._setField('brok-cost-basis', 0);
-    this._setField('brok-move-basis', '');
     modal.classList.add('open');
   }
 
   saveBrokerageModal() {
     const id = document.getElementById('brok-id').value;
     const data = {
-      name: this._getField('brok-name'),
-      country: this._getField('brok-country'),
-      balance: +this._getField('brok-balance'),
+      name:               this._getField('brok-name'),
+      country:            this._getField('brok-country'),
+      balance:            +this._getField('brok-balance'),
       annualContribution: +this._getField('brok-contribution'),
-      growthRate: +this._getField('brok-growth'),
-      costBasis: +this._getField('brok-cost-basis'),
-      currency: this._getField('brok-country') === 'AUS' ? 'AUD' : 'USD',
-      moveValueBasis: this._getField('brok-move-basis') !== '' ? +this._getField('brok-move-basis') : null,
+      growthRate:         +this._getField('brok-growth'),
+      costBasis:          +this._getField('brok-cost-basis'),
+      currency:           this._getField('brok-country') === 'AUS' ? 'AUD' : 'USD',
     };
     if (id) this._state.updateBrokerage(id, data);
     else    this._state.addBrokerage(data);
