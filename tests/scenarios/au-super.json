@@ -1,0 +1,46 @@
+{
+  "_comment": "Alice (born 1966) retires at 60 and moves to Australia in 2026. She holds a single AUD super account worth $1,000,000 AUD growing at 7%/yr. Inflation is zeroed so amounts stay round. Annual expenses $50,000. Tests verify: (1) AU fund earnings tax (15%) is deducted from the account balance each year, (2) AU super withdrawals at age 60+ are completely tax-free (auTax === 0), (3) US treatment of super withdrawal is taxable as ordinary income.",
+  "currency": "USD",
+  "fxRate": 1.58,
+  "taxBaseYear": 2025,
+  "people": [
+    {
+      "id": "person1",
+      "name": "Alice",
+      "birthYear": 1966,
+      "retirementAge": 60,
+      "lifeExpectancy": 90,
+      "socialSecurityAge": 70,
+      "socialSecurityMonthly": 0,
+      "isCitizen": "us",
+      "annualIncome": 0
+    }
+  ],
+  "moveToAustraliaYear": 2026,
+  "moveEnabled": true,
+  "inflationUS": 0,
+  "inflationAUS": 0,
+  "accounts": [
+    {
+      "id": "super1",
+      "name": "Alice Super",
+      "type": "super",
+      "country": "AUS",
+      "currency": "AUD",
+      "balance": 1000000,
+      "annualContribution": 0,
+      "employerMatch": 0,
+      "growthRate": 7.0,
+      "ownerId": "person1",
+      "withdrawalStartAge": 60,
+      "contributions": 0
+    }
+  ],
+  "properties": [],
+  "brokerageAccounts": [],
+  "savingsAccounts": [],
+  "currentAnnualExpenses": 50000,
+  "retirementExpenseRatio": 1.0,
+  "australiaExpenseRatio": 1.0,
+  "targetEndBalance": 0
+}

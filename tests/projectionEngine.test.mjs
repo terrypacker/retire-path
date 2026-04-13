@@ -32,6 +32,7 @@ import { dirname, join } from 'node:path';
 import { ProjectionEngine } from '../assets/js/projectionEngine.js';
 import { TaxEngine }        from '../assets/js/tax/TaxEngine.js';
 import { createMockState }  from './helpers/mockState.mjs';
+import { SuperAccount }     from '../assets/js/assets/accounts/SuperAccount.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -576,5 +577,158 @@ test('AU tax detail: Brokerage CGT carries effective rate string', () => {
   assert.ok(
     typeof cgt.rate === 'string' && cgt.rate.includes('eff.'),
     `Expected AU Brokerage CGT rate to contain "eff.", got: "${cgt.rate}"`
+  );
+});
+
+// ── Super account tax handling ────────────────────────────────────────────────
+//
+// Australian Superannuation tax rules:
+//   • 15% contributions tax:  deducted from the fund balance at contribution time,
+//     NOT reported as ordinary income (paid within the fund).
+//   • 15% earnings tax:       deducted from the fund balance each year on investment
+//     growth, NOT reported as ordinary income (paid within the fund).
+//   • Withdrawals at age 60+: completely tax-free in Australia.
+//   • Withdrawals under 60:   treated as ordinary income (simplified; 15% offset not
+//     modelled here).
+//
+// US treatment (simplified):
+//   • Contributions: not taxed.
+//   • Withdrawals:   taxed as ordinary income.
+//
+// Unit tests exercise SuperAccount methods directly.
+// Integration test (au-super.json) exercises the full engine: Alice (born 1966,
+// retires at 60, moves to AU in 2026) holds $1M super; expenses $50K/yr.
+
+// ── Unit: AU account treatment ───────────────────────────────────────────────
+
+test('Super AU treatment: contribution event returns taxableIncome = 0 (tax deducted in fund)', () => {
+  const acc = new SuperAccount({ id: 's1', name: 'Test Super', balance: 0, growthRate: 7, annualContribution: 10000, ownerId: 'p1' });
+  const result = acc.getAUAccountTreatment('contribution', 10000, { age: 55 });
+  assert.strictEqual(result.taxableIncome, 0,
+    `Expected taxableIncome = 0 for contribution event (15% already deducted from balance). Got: ${result.taxableIncome}`);
+});
+
+test('Super AU treatment: growth event returns taxableIncome = 0 (tax deducted in fund)', () => {
+  const acc = new SuperAccount({ id: 's1', name: 'Test Super', balance: 0, growthRate: 7, annualContribution: 0, ownerId: 'p1' });
+  const result = acc.getAUAccountTreatment('growth', 35000, { age: 55 });
+  assert.strictEqual(result.taxableIncome, 0,
+    `Expected taxableIncome = 0 for growth event (15% earnings tax already deducted from balance). Got: ${result.taxableIncome}`);
+});
+
+test('Super AU treatment: withdrawal at age 60+ is tax-free (taxableIncome = 0)', () => {
+  const acc = new SuperAccount({ id: 's1', name: 'Test Super', balance: 0, growthRate: 7, annualContribution: 0, ownerId: 'p1' });
+  const result = acc.getAUAccountTreatment('withdrawal', 50000, { age: 60 });
+  assert.strictEqual(result.taxableIncome, 0,
+    `Expected taxableIncome = 0 for withdrawal at age 60 (tax-free super). Got: ${result.taxableIncome}`);
+});
+
+test('Super AU treatment: withdrawal under 60 is taxable as ordinary income', () => {
+  const acc = new SuperAccount({ id: 's1', name: 'Test Super', balance: 0, growthRate: 7, annualContribution: 0, ownerId: 'p1' });
+  const result = acc.getAUAccountTreatment('withdrawal', 50000, { age: 55 });
+  assert.strictEqual(result.taxableIncome, 50000,
+    `Expected taxableIncome = 50000 for withdrawal under 60 (ordinary income). Got: ${result.taxableIncome}`);
+});
+
+// ── Unit: US account treatment ────────────────────────────────────────────────
+
+test('Super US treatment: contribution is not taxable', () => {
+  const acc = new SuperAccount({ id: 's1', name: 'Test Super', balance: 0, growthRate: 7, annualContribution: 10000, ownerId: 'p1' });
+  const result = acc.getUSAccountTreatment('contribution', 10000, {});
+  assert.strictEqual(result.taxableIncome, 0,
+    `Expected taxableIncome = 0 for super contribution (not taxed in US). Got: ${result.taxableIncome}`);
+});
+
+test('Super US treatment: withdrawal is taxable as ordinary income', () => {
+  const acc = new SuperAccount({ id: 's1', name: 'Test Super', balance: 0, growthRate: 7, annualContribution: 0, ownerId: 'p1' });
+  const result = acc.getUSAccountTreatment('withdrawal', 50000, { age: 60 });
+  assert.strictEqual(result.taxableIncome, 50000,
+    `Expected taxableIncome = 50000 for super withdrawal (taxed as ordinary income in US). Got: ${result.taxableIncome}`);
+});
+
+// ── Unit: in-fund tax deducted from balance ───────────────────────────────────
+
+test('Super applyGrowth: net growth is 85% of gross (15% earnings tax deducted)', () => {
+  // Balance $100,000; growthRate 7% → gross growth = $7,000; net = $7,000 × 0.85 = $5,950
+  // Expected new balance: $105,950
+  const acc = new SuperAccount({ id: 's1', name: 'Test Super', balance: 100000, growthRate: 7, annualContribution: 0, ownerId: 'p1' });
+  const result = acc.applyGrowth(100000);
+  const expected = 100000 + 7000 * 0.85;  // 105950
+  assert.strictEqual(result, expected,
+    `Expected applyGrowth(100000) = ${expected} (net of 15% earnings tax). Got: ${result}`);
+});
+
+test('Super applyContributions: net contribution is 85% of gross (15% contributions tax deducted)', () => {
+  // Balance $100,000; contribution $10,000 → net = $10,000 × 0.85 = $8,500
+  // Expected new balance: $108,500
+  const acc = new SuperAccount({ id: 's1', name: 'Test Super', balance: 100000, growthRate: 7, annualContribution: 10000, employerMatch: 0, ownerId: 'p1' });
+  const result = acc.applyContributions(100000);
+  const expected = 100000 + 10000 * 0.85;  // 108500
+  assert.strictEqual(result, expected,
+    `Expected applyContributions(100000) = ${expected} (net of 15% contributions tax). Got: ${result}`);
+});
+
+// ── Integration: AU super withdrawal at 60+ does not generate AU tax ──────────
+// Scenario: Alice (born 1966) retires at 60 and moves to Australia in 2026.
+// She holds $1M in super (7% growth, no further contributions).
+// Annual expenses $50K — covered entirely by the super withdrawal.
+// AU super withdrawals at 60+ are tax-free: auTax must be $0.
+// The withdrawal must still appear in totalIncome (it is real cash).
+
+test('Super integration: AU tax is zero on super withdrawal at age 60+', () => {
+  const state  = createMockState(loadScenario('au-super.json'));
+  const taxes  = new TaxEngine();
+  const engine = new ProjectionEngine(state, taxes);
+
+  const years = engine.run();
+  const firstPostMoveYear = years.find(y => y.isPostMove && y.accountWithdrawals > 0);
+
+  assert.ok(firstPostMoveYear !== undefined,
+    'Expected at least one post-move year with a super withdrawal');
+
+  assert.strictEqual(
+    firstPostMoveYear.auTax, 0,
+    `Year ${firstPostMoveYear.year}: auTax should be $0 for a super withdrawal at age 60+ ` +
+    `(tax-free in Australia). Got auTax = $${firstPostMoveYear.auTax.toFixed(2)}`
+  );
+});
+
+test('Super integration: super withdrawal appears in totalIncome', () => {
+  const state  = createMockState(loadScenario('au-super.json'));
+  const taxes  = new TaxEngine();
+  const engine = new ProjectionEngine(state, taxes);
+
+  const years = engine.run();
+  const firstPostMoveYear = years.find(y => y.isPostMove && y.accountWithdrawals > 0);
+
+  assert.ok(firstPostMoveYear !== undefined,
+    'Expected at least one post-move year with a super withdrawal');
+
+  assert.ok(
+    firstPostMoveYear.totalIncome >= firstPostMoveYear.accountWithdrawals,
+    `Year ${firstPostMoveYear.year}: totalIncome ($${firstPostMoveYear.totalIncome.toFixed(0)}) ` +
+    `should include the super withdrawal ($${firstPostMoveYear.accountWithdrawals.toFixed(0)})`
+  );
+});
+
+test('Super integration: account balance reflects 15% earnings tax deduction each year', () => {
+  // Gross growth on $1,000,000 at 7% = $70,000.
+  // After 15% earnings tax: net growth = $70,000 × 0.85 = $59,500.
+  // Expected balance after growth (before withdrawal): $1,059,500.
+  // After $50,000 withdrawal: $1,009,500.
+  // Allow ±$1 for floating-point rounding.
+  const state  = createMockState(loadScenario('au-super.json'));
+  const taxes  = new TaxEngine();
+  const engine = new ProjectionEngine(state, taxes);
+
+  const years = engine.run();
+  const firstYear = years[0];
+
+  const superBalance = firstYear.assetBalances['super1'];
+  const expectedBalance = 1000000 + 70000 * 0.85 - 50000;  // 1,009,500
+
+  assert.ok(
+    Math.abs(superBalance - expectedBalance) <= 1,
+    `Year ${firstYear.year}: super account balance should be ~$${expectedBalance.toLocaleString()} ` +
+    `(after 15% earnings tax and $50K withdrawal). Got: $${superBalance.toLocaleString()}`
   );
 });

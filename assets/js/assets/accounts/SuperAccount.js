@@ -26,16 +26,20 @@ import { RetirementAccount } from '../RetirementAccount.js';
  *
  * AU tax rates modelled (accumulation phase):
  *  - Contributions: 15% tax within the fund (concessional contributions).
- *  - Earnings:      15% tax within the fund.
- *  - Withdrawal:    Tax-free at age 60+; 20% (simplified) if under 60.
+ *    Deducted from the account balance at contribution time — NOT ordinary income.
+ *  - Earnings:      15% tax within the fund, deducted from growth each year.
+ *    NOT ordinary income; simply reduces the net return on investment.
+ *  - Withdrawal:    Completely tax-free at age 60+.
+ *    Under 60 (preservation age rules, simplified): treated as ordinary income.
  *
- * US tax treatment is not modelled (known limitation — Super is complex
- * for US citizens; consult a cross-border tax specialist).
+ * US tax treatment (simplified):
+ *  - Contributions: not taxed in the US.
+ *  - Growth:        not taxed until withdrawal.
+ *  - Withdrawals:   taxed as ordinary income (simplified; grantor-trust rules not modelled).
  */
 export class SuperAccount extends RetirementAccount {
-  static CONTRIBUTIONS_TAX_RATE  = 0.15;
-  static EARNINGS_TAX_RATE       = 0.15;
-  static WITHDRAWAL_TAX_UNDER_60 = 0.20;
+  static CONTRIBUTIONS_TAX_RATE = 0.15;
+  static EARNINGS_TAX_RATE      = 0.15;
 
   constructor(data) {
     super({
@@ -47,12 +51,38 @@ export class SuperAccount extends RetirementAccount {
     });
   }
 
+  // ── Growth (overrides BaseAccount) ────────────────────────────────────────
+
+  /**
+   * Apply one year of investment growth, net of the 15% earnings tax paid within the fund.
+   * The tax reduces the account balance directly — it is not ordinary income.
+   * @param {number} balance
+   * @returns {number}
+   */
+  applyGrowth(balance) {
+    const grossGrowth = balance * (this.growthRate / 100);
+    return balance + grossGrowth * (1 - SuperAccount.EARNINGS_TAX_RATE);
+  }
+
+  // ── Contributions (overrides RetirementAccount) ───────────────────────────
+
+  /**
+   * Add annual contributions net of the 15% contributions tax paid within the fund.
+   * The tax reduces the amount credited to the account — it is not ordinary income.
+   * @param {number} balance
+   * @returns {number}
+   */
+  applyContributions(balance) {
+    return balance + this.getContribution() * (1 - SuperAccount.CONTRIBUTIONS_TAX_RATE);
+  }
+
   // ── US tax treatment ───────────────────────────────────────────────────────
 
   getUSAccountTreatment(eventType, amount, context = {}) {
-    // Australian Super is treated as a foreign grantor trust for US citizens but detailed
-    // modelling is out of scope (known limitation). Return zero to avoid double-counting.
-    return { taxableIncome: 0, penaltyAmount: 0, note: 'Australian Super — US tax treatment not modelled (known limitation)' };
+    if (eventType === 'contribution') return { taxableIncome: 0,      penaltyAmount: 0, note: 'Super contributions not taxed in US' };
+    if (eventType === 'growth')       return { taxableIncome: 0,      penaltyAmount: 0, note: 'Super growth deferred until withdrawal' };
+    if (eventType === 'withdrawal')   return { taxableIncome: amount, penaltyAmount: 0, note: 'Super withdrawal taxed as ordinary income (US simplified treatment)' };
+    return { taxableIncome: amount, penaltyAmount: 0, note: '' };
   }
 
   // ── AU tax treatment ───────────────────────────────────────────────────────
@@ -60,16 +90,19 @@ export class SuperAccount extends RetirementAccount {
   getAUAccountTreatment(eventType, amount, context = {}) {
     const age = context.age || 60;
 
+    // Contributions and growth taxes are already deducted from the balance via
+    // applyContributions() / applyGrowth(). Nothing flows into ordinary income.
     if (eventType === 'contribution')
-      return { taxableIncome: amount * SuperAccount.CONTRIBUTIONS_TAX_RATE, penaltyAmount: 0, note: '15% contributions tax in fund' };
+      return { taxableIncome: 0, penaltyAmount: 0, note: '15% contributions tax deducted within fund' };
 
     if (eventType === 'growth')
-      return { taxableIncome: amount * SuperAccount.EARNINGS_TAX_RATE, penaltyAmount: 0, note: '15% earnings tax in accumulation phase' };
+      return { taxableIncome: 0, penaltyAmount: 0, note: '15% earnings tax deducted within fund' };
 
     if (eventType === 'withdrawal') {
       if (age >= 60)
-        return { taxableIncome: 0,                                        penaltyAmount: 0, note: 'Tax-free super withdrawal (age 60+)' };
-      return   { taxableIncome: amount * SuperAccount.WITHDRAWAL_TAX_UNDER_60, penaltyAmount: 0, note: '20% tax + Medicare (under 60) — simplified' };
+        return { taxableIncome: 0,      penaltyAmount: 0, note: 'Tax-free super withdrawal (age 60+)' };
+      // Under preservation age: taxable as ordinary income (simplified; 15% offset not modelled)
+      return   { taxableIncome: amount, penaltyAmount: 0, note: 'Taxable as ordinary income (under 60, preservation age rules — simplified)' };
     }
 
     return { taxableIncome: amount, penaltyAmount: 0, note: '' };
