@@ -141,6 +141,7 @@ export class UIManager {
   _bindPeopleInputs() {
     const s = this._state;
     const people = s.get('people');
+    const formatUSDToNumber = s.getFormatCurrencyToNumber('USD');
 
     people.forEach((person, idx) => {
       this._bindInput(`p${idx+1}-name`,           v => { people[idx].name = v;              s.set('people', [...people]); }, person.name, false);
@@ -148,20 +149,25 @@ export class UIManager {
       this._bindInput(`p${idx+1}-retire-age`,      v => { people[idx].retirementAge = +v;    s.set('people', [...people]); }, person.retirementAge);
       this._bindInput(`p${idx+1}-life-exp`,        v => { people[idx].lifeExpectancy = +v; s.set('people', [...people]); document.getElementById(`p${idx+1}-life-exp-val`).textContent = `${+v}`;}, person.lifeExpectancy);
       this._bindInput(`p${idx+1}-ss-age`,          v => { people[idx].socialSecurityAge = +v; s.set('people', [...people]); }, person.socialSecurityAge);
-      this._bindInput(`p${idx+1}-ss-monthly`,      v => { people[idx].socialSecurityMonthly = +v; s.set('people', [...people]); }, person.socialSecurityMonthly);
-      this._bindInput(`p${idx+1}-annual-income`,   v => { people[idx].annualIncome = +v;     s.set('people', [...people]); }, person.annualIncome);
+      this._bindInput(`p${idx+1}-ss-monthly`,      v => { people[idx].socialSecurityMonthly = formatUSDToNumber(v); s.set('people', [...people]); }, person.socialSecurityMonthly, false);
+      this._maskCurrencyInput(`p${idx+1}-ss-monthly`, 'USD');
+      this._bindInput(`p${idx+1}-annual-income`,   v => { people[idx].annualIncome = formatUSDToNumber(v);  s.set('people', [...people]); }, person.annualIncome, false);
+      this._maskCurrencyInput(`p${idx+1}-annual-income`, 'USD');
     });
   }
 
   // ── Finance inputs ────────────────────────────────────────────────────────
   _bindFinanceInputs() {
     const s = this._state;
+    const formatUSDToNumber = s.getFormatCurrencyToNumber('USD');
     this._bindInput('inflation-us',          v => s.set('inflationUS', +v),            s.get('inflationUS'));
     this._bindInput('inflation-aus',         v => s.set('inflationAUS', +v),           s.get('inflationAUS'));
-    this._bindInput('annual-expenses',       v => { s.set('currentAnnualExpenses', +v); this._updateRetirementExpenseHint(); }, s.get('currentAnnualExpenses'));
+    this._bindInput('annual-expenses',       v => { s.set('currentAnnualExpenses', formatUSDToNumber(v)); this._updateRetirementExpenseHint(); }, s.get('currentAnnualExpenses'), false);
+    this._maskCurrencyInput('annual-expenses', 'USD');
     this._bindInput('retirement-ratio',      v => { s.set('retirementExpenseRatio', +v / 100); this._updateRetirementExpenseHint(); }, s.get('retirementExpenseRatio') * 100);
     this._bindInput('au-expense-ratio',      v => s.set('australiaExpenseRatio',  +v / 100), s.get('australiaExpenseRatio')  * 100);
-    this._bindInput('target-end-balance',    v => s.set('targetEndBalance', +v),       s.get('targetEndBalance'));
+    this._bindInput('target-end-balance',    v => s.set('targetEndBalance', formatUSDToNumber(v)), s.get('targetEndBalance'), false);
+    this._maskCurrencyInput('target-end-balance', 'USD');
     this._updateRetirementExpenseHint();
   }
 
@@ -424,13 +430,26 @@ export class UIManager {
     el.addEventListener('input',  () => handler(numeric ? +el.value : el.value));
   }
 
+  _maskCurrencyInput(id, currency) {
+    const setMask = this._state.getCurrencySetMask(currency);
+    setMask('#' + id);
+  }
+
+  _remaskCurrencyInput(id, currency) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const clone = el.cloneNode(true);
+    el.replaceWith(clone);
+    this._state.getCurrencySetMask(currency)('#' + id);
+  }
+
   // ══════════════════════════════════════════════════════════════════════════
   // KPI Bar
   // ══════════════════════════════════════════════════════════════════════════
   updateKPIs(years) {
     if (!years || years.length === 0) return;
     const s   = this._state;
-    const fmt = makeFmt(s);
+    const  fmt = makeFmt(s);
 
     const retirementYear = s.getEarliestRetirementYear();
     const retYear = years.find(y => y.year === retirementYear) || years[0];
@@ -973,9 +992,15 @@ export class UIManager {
     this._setField('acc-owner', acc.ownerId || 'person1');
     this._setField('acc-contributions', acc.contributions || 0);
     this._updateAccountTypeConstraints(acc.type);
+    const cur = acc.currency || 'USD';
+    ['acc-balance', 'acc-contribution', 'acc-match', 'acc-contributions'].forEach(id => this._remaskCurrencyInput(id, cur));
     // Re-wire type selector each time the modal opens to keep show/hide in sync
     const typeSelect = document.getElementById('acc-type');
-    if (typeSelect) typeSelect.onchange = () => this._updateAccountTypeConstraints(typeSelect.value);
+    if (typeSelect) typeSelect.onchange = () => {
+      this._updateAccountTypeConstraints(typeSelect.value);
+      const newCur = document.getElementById('acc-currency').value || 'USD';
+      ['acc-balance', 'acc-contribution', 'acc-match', 'acc-contributions'].forEach(id => this._remaskCurrencyInput(id, newCur));
+    };
   }
 
   _updateAccountTypeConstraints(accountType) {
@@ -1009,20 +1034,22 @@ export class UIManager {
   }
 
   saveAccountModal() {
-    const id   = document.getElementById('modal-account-id').value;
-    const type = this._getField('acc-type');
+    const id       = document.getElementById('modal-account-id').value;
+    const type     = this._getField('acc-type');
+    const currency = this._getField('acc-currency') || 'USD';
+    const fmt      = this._state.getFormatCurrencyToNumber(currency);
     const data = {
       name:               this._getField('acc-name'),
       type,
       country:            this._getField('acc-country'),
-      balance:            +this._getField('acc-balance'),
-      currency:           this._getField('acc-currency'),
-      annualContribution: +this._getField('acc-contribution'),
-      employerMatch:      +this._getField('acc-match'),
+      balance:            fmt(this._getField('acc-balance')),
+      currency,
+      annualContribution: fmt(this._getField('acc-contribution')),
+      employerMatch:      fmt(this._getField('acc-match')),
       growthRate:         +this._getField('acc-growth'),
       withdrawalStartAge: +this._getField('acc-withdraw-age'),
       ownerId:            this._getField('acc-owner'),
-      contributions:      (type === 'ira' || type === 'roth') ? +this._getField('acc-contributions') : 0,
+      contributions:      (type === 'ira' || type === 'roth') ? fmt(this._getField('acc-contributions')) : 0,
     };
     if (id) this._state.updateAccount(id, data);
     else    this._state.addAccount(data);
@@ -1068,6 +1095,8 @@ export class UIManager {
       this._setField('prop-sale-year', prop.plannedSaleYear || '');
       this._populateSaleDestination(prop.saleDestinationId);
       this._fillPropertyOwnership(prop.owners || [{ personId: 'person1', ownershipPct: 100 }]);
+      const propCur = prop.country === 'AUS' ? 'AUD' : 'USD';
+      ['prop-value', 'prop-mortgage', 'prop-monthly-mortgage', 'prop-cost-basis'].forEach(fid => this._remaskCurrencyInput(fid, propCur));
     }
     modal.classList.add('open');
   }
@@ -1085,6 +1114,7 @@ export class UIManager {
     this._setField('prop-sale-year', '');
     this._populateSaleDestination(null);
     this._fillPropertyOwnership([{ personId: 'person1', ownershipPct: 100 }]);
+    ['prop-value', 'prop-mortgage', 'prop-monthly-mortgage', 'prop-cost-basis'].forEach(id => this._remaskCurrencyInput(id, 'USD'));
     modal.classList.add('open');
   }
 
@@ -1114,16 +1144,19 @@ export class UIManager {
     if (people[1] && pct2 > 0) owners.push({ personId: people[1].id, ownershipPct: pct2 });
     if (owners.length === 0)    owners.push({ personId: (people[0] && people[0].id) || 'person1', ownershipPct: 100 });
 
+    const propCountry  = this._getField('prop-country');
+    const propCurrency = propCountry === 'AUS' ? 'AUD' : 'USD';
+    const propFmt      = this._state.getFormatCurrencyToNumber(propCurrency);
     const data = {
       name:             this._getField('prop-name'),
-      country:          this._getField('prop-country'),
-      currentValue:     +this._getField('prop-value'),
-      mortgageBalance:  +this._getField('prop-mortgage'),
-      monthlyMortgage:  +this._getField('prop-monthly-mortgage'),
+      country:          propCountry,
+      currentValue:     propFmt(this._getField('prop-value')),
+      mortgageBalance:  propFmt(this._getField('prop-mortgage')),
+      monthlyMortgage:  propFmt(this._getField('prop-monthly-mortgage')),
       appreciationRate: +this._getField('prop-appreciation'),
-      costBasis:        +this._getField('prop-cost-basis'),
+      costBasis:        propFmt(this._getField('prop-cost-basis')),
       plannedSaleYear:  this._getField('prop-sale-year') ? +this._getField('prop-sale-year') : null,
-      currency:         this._getField('prop-country') === 'AUS' ? 'AUD' : 'USD',
+      currency:         propCurrency,
       saleDestinationId: this._getField('prop-sale-destination') || null,
       owners,
     };
@@ -1156,6 +1189,8 @@ export class UIManager {
       this._setField('brok-cost-basis', b.costBasis || 0);
       this._setField('brok-priority', b.priority != null ? b.priority : 1);
       this._fillBrokerageOwnership(b.isJointAccount || false, b.ownerId || 'person1');
+      const brokCur = b.country === 'AUS' ? 'AUD' : 'USD';
+      ['brok-balance', 'brok-contribution', 'brok-cost-basis'].forEach(fid => this._remaskCurrencyInput(fid, brokCur));
     }
     modal.classList.add('open');
   }
@@ -1171,6 +1206,7 @@ export class UIManager {
     this._setField('brok-cost-basis', 0);
     this._setField('brok-priority', 1);
     this._fillBrokerageOwnership(false, 'person1');
+    ['brok-balance', 'brok-contribution', 'brok-cost-basis'].forEach(id => this._remaskCurrencyInput(id, 'USD'));
     modal.classList.add('open');
   }
 
@@ -1198,17 +1234,20 @@ export class UIManager {
   }
 
   saveBrokerageModal() {
-    const id       = document.getElementById('brok-id').value;
-    const jointEl  = document.getElementById('brok-joint');
-    const isJoint  = jointEl ? jointEl.checked : false;
+    const id        = document.getElementById('brok-id').value;
+    const jointEl   = document.getElementById('brok-joint');
+    const isJoint   = jointEl ? jointEl.checked : false;
+    const brokCountry  = this._getField('brok-country');
+    const brokCurrency = brokCountry === 'AUS' ? 'AUD' : 'USD';
+    const brokFmt      = this._state.getFormatCurrencyToNumber(brokCurrency);
     const data = {
       name:               this._getField('brok-name'),
-      country:            this._getField('brok-country'),
-      balance:            +this._getField('brok-balance'),
-      annualContribution: +this._getField('brok-contribution'),
+      country:            brokCountry,
+      balance:            brokFmt(this._getField('brok-balance')),
+      annualContribution: brokFmt(this._getField('brok-contribution')),
       growthRate:         +this._getField('brok-growth'),
-      costBasis:          +this._getField('brok-cost-basis'),
-      currency:           this._getField('brok-country') === 'AUS' ? 'AUD' : 'USD',
+      costBasis:          brokFmt(this._getField('brok-cost-basis')),
+      currency:           brokCurrency,
       isJointAccount:     isJoint,
       ownerId:            isJoint ? null : this._getField('brok-owner'),
       priority:           +this._getField('brok-priority') || 1,
@@ -1243,6 +1282,8 @@ export class UIManager {
       this._setField('sav-growth', s.growthRate != null ? s.growthRate : 4.5);
       this._setField('sav-min-balance', s.minimumBalance || 0);
       this._setField('sav-priority', s.priority != null ? s.priority : 1);
+      const savCur = (s.country || 'US') === 'AUS' ? 'AUD' : 'USD';
+      ['sav-balance', 'sav-min-balance'].forEach(fid => this._remaskCurrencyInput(fid, savCur));
     }
     modal.classList.add('open');
   }
@@ -1258,6 +1299,7 @@ export class UIManager {
     this._setField('sav-growth', 4.5);
     this._setField('sav-min-balance', 0);
     this._setField('sav-priority', 1);
+    ['sav-balance', 'sav-min-balance'].forEach(id => this._remaskCurrencyInput(id, 'USD'));
     modal.classList.add('open');
   }
 
@@ -1273,17 +1315,19 @@ export class UIManager {
   }
 
   saveSavingsModal() {
-    const id    = document.getElementById('sav-id').value;
-    const country = this._getField('sav-country') || 'US';
+    const id       = document.getElementById('sav-id').value;
+    const country  = this._getField('sav-country') || 'US';
     const ownerVal = this._getField('sav-owner');
+    const savCurrency = country === 'AUS' ? 'AUD' : 'USD';
+    const savFmt      = this._state.getFormatCurrencyToNumber(savCurrency);
     const data = {
       name:           this._getField('sav-name'),
       country,
-      currency:       country === 'AUS' ? 'AUD' : 'USD',
+      currency:       savCurrency,
       ownerId:        ownerVal === 'none' ? null : ownerVal,
-      balance:        +this._getField('sav-balance'),
+      balance:        savFmt(this._getField('sav-balance')),
       growthRate:     +this._getField('sav-growth'),
-      minimumBalance: +this._getField('sav-min-balance'),
+      minimumBalance: savFmt(this._getField('sav-min-balance')),
       priority:       +this._getField('sav-priority') || 1,
     };
     if (id) this._state.updateSavings(id, data);

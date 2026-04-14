@@ -22,11 +22,39 @@
  * Central state store for the retirement planner.
  * All modules read/write through this singleton.
  */
+import { createInstanceOf, setMask, formatToNumber } from './ui/simple-mask-money/simple-mask-money.esm.js';
 
 export class AppState {
   constructor() {
     this._state = this._defaultState();
     this._listeners = [];
+    const optionsUSD = {
+      allowNegative: false,
+      negativeSignAfter: false,
+      prefix: '$',
+      suffix: '',
+      fixed: true,
+      fractionDigits: 0,
+      decimalSeparator: '.',
+      thousandsSeparator: ',',
+      cursor: 'end'
+    };
+    this._setUSDMask = createInstanceOf(setMask, optionsUSD);
+    this._formatUSDToNumber = createInstanceOf(formatToNumber, optionsUSD);
+
+    const optionsAUD = {
+      allowNegative: false,
+      negativeSignAfter: false,
+      prefix: 'A$',
+      suffix: '',
+      fixed: true,
+      fractionDigits: 0,
+      decimalSeparator: '.',
+      thousandsSeparator: ',',
+      cursor: 'end'
+    };
+    this._setAUDMask = createInstanceOf(setMask, optionsAUD);
+    this._formatAUDToNumber = createInstanceOf(formatToNumber, optionsAUD);
   }
 
   _defaultState() {
@@ -371,6 +399,7 @@ export class AppState {
     return Math.max(...people.map(p => p.birthYear + p.lifeExpectancy));
   }
 
+  /** TODO We can remove these and use simple-mask-money formatToCurrency **/
   toDisplayCurrency(valueUSD) {
     if (this._state.currency === 'AUD') {
       return valueUSD * this._state.fxRate;
@@ -388,6 +417,35 @@ export class AppState {
   getCurrencySymbol() {
     return this._state.currency === 'AUD' ? 'A$' : '$';
   }
+  /* Currency Helper functions */
+
+  /**
+   * Get a method that will mask a currency input based on the supplied currency,
+   * or default currency if non is supplied and the currency format settings
+   * @returns {*}
+   */
+  getCurrencySetMask(currency = this._state.currency) {
+    if(currency === 'USD') {
+      return this._setUSDMask;
+    }else {
+      return this._setAUDMask;
+    }
+  }
+
+  /**
+   * Get the method that will format a currency string to a number value
+   * based on the currency and format settings
+   * @param currency
+   * @returns {*}
+   */
+  getFormatCurrencyToNumber(currency = this._state.currency) {
+    if(currency === 'USD') {
+      return this._formatUSDToNumber;
+    }else {
+      return this._formatAUDToNumber;
+    }
+  }
+
 }
 
 // Singleton — imported by app.js, chartManager.js, and anywhere else that needs state
