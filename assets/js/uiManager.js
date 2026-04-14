@@ -121,6 +121,7 @@ export class UIManager {
     this._renderPropertyList();
     this._renderBrokerageList();
     this._renderSavingsList();
+    this.refreshSidebarInputs();
   }
 
   // ── Navigation tabs ───────────────────────────────────────────────────────
@@ -221,6 +222,70 @@ export class UIManager {
         slider.disabled = !toggle.checked;
       });
     }
+  }
+
+  // ── Refresh all sidebar inputs from current state ─────────────────────────
+  refreshSidebarInputs() {
+    const s = this._state;
+    const people = s.get('people');
+
+    const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
+    const setCurrency = (id, v) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      el.value = v;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    };
+
+    // People inputs
+    people.forEach((person, idx) => {
+      const n = idx + 1;
+      setVal(`p${n}-name`,           person.name);
+      setVal(`p${n}-birth-year`,     person.birthYear);
+      setVal(`p${n}-retire-age`,     person.retirementAge);
+      setVal(`p${n}-life-exp`,       person.lifeExpectancy);
+      const lifeDisplay = document.getElementById(`p${n}-life-exp-val`);
+      if (lifeDisplay) lifeDisplay.textContent = person.lifeExpectancy;
+      setVal(`p${n}-ss-age`,         person.socialSecurityAge);
+      setCurrency(`p${n}-ss-monthly`,    person.socialSecurityMonthly);
+      setCurrency(`p${n}-annual-income`, person.annualIncome);
+    });
+
+    // Finance inputs
+    setVal('inflation-us',       s.get('inflationUS'));
+    setVal('inflation-aus',      s.get('inflationAUS'));
+    setCurrency('annual-expenses',    s.get('currentAnnualExpenses'));
+    setVal('retirement-ratio',   s.get('retirementExpenseRatio') * 100);
+    setVal('au-expense-ratio',   s.get('australiaExpenseRatio')  * 100);
+    setCurrency('target-end-balance', s.get('targetEndBalance'));
+
+    // Move slider
+    const slider  = document.getElementById('move-year-slider');
+    const display = document.getElementById('move-year-display');
+    const toggle  = document.getElementById('move-enabled-toggle');
+    if (slider) {
+      slider.value = s.get('moveToAustraliaYear');
+      const min = +slider.min, max = +slider.max, val = +slider.value;
+      slider.style.setProperty('--progress', ((val - min) / (max - min)) * 100 + '%');
+      if (display) display.textContent = val;
+    }
+    if (toggle) toggle.checked = s.get('moveEnabled');
+
+    // Currency toggle buttons
+    const cur = s.get('currency');
+    document.querySelectorAll('.currency-toggle button').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.currency === cur);
+    });
+
+    // Tax year select
+    const taxSelect = document.getElementById('tax-year-select');
+    if (taxSelect) taxSelect.value = s.get('taxBaseYear');
+
+    // FX rate display
+    const fxEl = document.getElementById('fx-rate-display');
+    if (fxEl) fxEl.textContent = `1 USD = ${s.get('fxRate').toFixed(4)} AUD`;
+
+    this._updateRetirementExpenseHint();
   }
 
   // ── Currency toggle ───────────────────────────────────────────────────────
