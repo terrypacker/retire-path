@@ -227,13 +227,15 @@ export class UIManager {
   // ── Refresh all sidebar inputs from current state ─────────────────────────
   refreshSidebarInputs() {
     const s = this._state;
+    const formatUSDToCurrency = s.getFormatNumberToCurrency('USD');
     const people = s.get('people');
 
     const setVal = (id, v) => { const el = document.getElementById(id); if (el) el.value = v; };
     const setCurrency = (id, v) => {
       const el = document.getElementById(id);
       if (!el) return;
-      el.value = v;
+      const currencyString = formatUSDToCurrency(v);
+      el.value = currencyString;
       el.dispatchEvent(new Event('input', { bubbles: true }));
     };
 

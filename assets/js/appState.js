@@ -22,7 +22,7 @@
  * Central state store for the retirement planner.
  * All modules read/write through this singleton.
  */
-import { createInstanceOf, setMask, formatToNumber } from './ui/simple-mask-money/simple-mask-money.esm.js';
+import { createInstanceOf, setMask, formatToNumber, formatToCurrency} from './ui/simple-mask-money/simple-mask-money.esm.js';
 
 export class AppState {
   constructor() {
@@ -41,6 +41,7 @@ export class AppState {
     };
     this._setUSDMask = createInstanceOf(setMask, optionsUSD);
     this._formatUSDToNumber = createInstanceOf(formatToNumber, optionsUSD);
+    this._formatUSDToCurrency = createInstanceOf(formatToCurrency, optionsUSD);
 
     const optionsAUD = {
       allowNegative: false,
@@ -55,6 +56,7 @@ export class AppState {
     };
     this._setAUDMask = createInstanceOf(setMask, optionsAUD);
     this._formatAUDToNumber = createInstanceOf(formatToNumber, optionsAUD);
+    this._formatAUDToCurrency = createInstanceOf(formatToCurrency, optionsAUD);
   }
 
   _defaultState() {
@@ -443,6 +445,14 @@ export class AppState {
       return this._formatUSDToNumber;
     }else {
       return this._formatAUDToNumber;
+    }
+  }
+
+  getFormatNumberToCurrency(currency = this._state.currency) {
+    if(currency === 'USD') {
+      return this._formatUSDToCurrency;
+    }else {
+      return this._formatAUDToCurrency;
     }
   }
 
