@@ -910,12 +910,14 @@
 <div class="toast-container" id="toast-container"></div>
 
 <!-- ══════════════════ SCRIPTS ══════════════════ -->
-<!-- CDN libraries load first as plain scripts to populate window.Chart -->
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
-
 <!-- ES module entry point — imports the full module graph -->
-<script type="module" src="assets/js/app.js"></script>
+<script type="module" src="./index.umd.min.js"></script>
+<script type="module">
+  // ── Bootstrap ────────────────────────────────────────────────────────────────
+  document.addEventListener('DOMContentLoaded', () => {
+    RetirePath.Misc.retirePathApp.init();
+  });
+</script>
 
 <script>
   // Help iframe switcher

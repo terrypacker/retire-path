@@ -1,0 +1,39 @@
+{
+  "name": "@terrypacker/retire-path",
+  "version": "1.0.0-alpha.1",
+  "type": "module",
+  "main": "dist/index.cjs.js",
+  "module": "dist/index.esm.js",
+  "browser": "dist/index.umd.js",
+  "scripts": {
+    "build:index": "node scripts/build-index.js",
+    "build": "rollup -c",
+    "test": "node --test tests/**/*.test.mjs",
+    "start": "live-server dist --no-browser",
+    "build:watch": "rollup -c -w",
+    "dev": "concurrently \"npm run build:watch\" \"npm run start\""
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com"
+  },
+  "dependencies": {
+    "chart.js": "^4.4.1",
+    "chartjs-plugin-annotation": "^3.0.1"
+  },
+  "devDependencies": {
+    "@babel/parser": "^7.29.2",
+    "@rollup/plugin-commonjs": "^29.0.2",
+    "@rollup/plugin-node-resolve": "^16.0.3",
+    "@rollup/plugin-terser": "^1.0.0",
+    "concurrently": "^9.2.1",
+    "live-server": "^1.2.2",
+    "rollup": "^4.60.2",
+    "rollup-plugin-copy": "^3.5.0",
+    "rollup-plugin-copy-watch": "^0.0.1",
+    "webpack-dev-server": "^5.2.3"
+  }
+}

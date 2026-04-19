@@ -29,10 +29,10 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
-import { ProjectionEngine } from '../assets/js/projectionEngine.js';
-import { TaxEngine }        from '../assets/js/tax/TaxEngine.js';
+import { ProjectionEngine } from '../src/projectionEngine.js';
+import { TaxEngine }        from '../src/tax/TaxEngine.js';
 import { createMockState }  from './helpers/mockState.mjs';
-import { SuperAccount }     from '../assets/js/assets/accounts/SuperAccount.js';
+import { SuperAccount }     from '../src/assets/accounts/SuperAccount.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 

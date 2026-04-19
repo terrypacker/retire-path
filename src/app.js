@@ -32,8 +32,9 @@ import { UIManager }        from './uiManager.js';
 
 // Module-scoped singletons
 const chartManager = new ChartManager();
+export const uiManager = new UIManager(appState);
 
-class App {
+export class App {
   constructor() {
     this._engine = new ProjectionEngine(appState, taxEngine);
     this._debounceTimer = null;
@@ -91,12 +92,4 @@ class App {
   }
 }
 
-// ── Bootstrap ────────────────────────────────────────────────────────────────
-let uiManager;
-let app;
-
-document.addEventListener('DOMContentLoaded', () => {
-  uiManager = new UIManager(appState);
-  app = new App();
-  app.init();
-});
+export const retirePathApp = new App();

@@ -23,6 +23,9 @@
  */
 
 import { appState } from './appState.js';
+import Chart from 'chart.js/auto';
+import annotationPlugin from 'chartjs-plugin-annotation';
+Chart.register(annotationPlugin);
 
 export class ChartManager {
   constructor() {
