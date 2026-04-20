@@ -45,7 +45,7 @@ export default [
       sourcemap: true
     },
     plugins: [
-        terser(),
+        !isWatching && terser(),
         nodeResolve(),
         commonjs(),
         !isWatching && copy({
