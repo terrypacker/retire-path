@@ -29,6 +29,9 @@ import { taxEngine }        from './tax/TaxEngine.js';
 import { ProjectionEngine } from './projectionEngine.js';
 import { ChartManager }     from './chartManager.js';
 import { UIManager }        from './uiManager.js';
+import { Core } from '@terrypacker/financial-sim';
+//FinSim test
+const simulation = new Core.Simulation(new Date(), {});
 
 // Module-scoped singletons
 const chartManager = new ChartManager();

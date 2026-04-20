@@ -158,7 +158,11 @@ The entire calculation pipeline is synchronous. No Promises, no async/await in t
 - **Tax modules are country+year-specific** — each module represents one jurisdiction and one base year. The engine selects the best available module (highest year ≤ projection year) and inflates brackets forward from there. US modules carry 2024 and 2025 MFJ rates; AU modules carry FY2024-25 and FY2025-26 rates.
 
 ---
-
+## Development against FinSimLib
+```text
+npm link # run in financial sim project
+npm link @terrypacker/financial-sim #run in local directory
+```
 ## Testing
 
 Tests live in `tests/` and use the Node.js built-in `node:test` runner — no npm, no external dependencies. Test files use the `.mjs` extension to enable ES6 modules without a `package.json`.

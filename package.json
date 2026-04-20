@@ -22,7 +22,8 @@
   },
   "dependencies": {
     "chart.js": "^4.4.1",
-    "chartjs-plugin-annotation": "^3.0.1"
+    "chartjs-plugin-annotation": "^3.0.1",
+    "@terrypacker/financial-sim": "1.0.0-alpha.1"
   },
   "devDependencies": {
     "@babel/parser": "^7.29.2",
